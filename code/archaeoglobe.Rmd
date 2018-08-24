@@ -2,7 +2,11 @@
 title: "archeoglobe"
 author: "Nick Gauthier"
 date: "August 23, 2018"
-output: html_document
+output: 
+  html_document: 
+    highlight: pygments
+    keep_md: yes
+    theme: cosmo
 ---
 
 ```{r setup, include=FALSE}
