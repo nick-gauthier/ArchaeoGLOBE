@@ -1,0 +1,73 @@
+---
+title: "archeoglobe"
+author: "Nick Gauthier"
+date: "August 23, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Sample analysis code for the ArchaeoGlobe database.
+
+## Setup
+Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. The `sf` package will help us work with shapefiles in a tidy context.
+```{r}
+library(tidyverse)
+library(sf)
+```
+
+## Data import
+Read in the latest version of the ArchaeoGLOBE database.
+```{r}
+dat <- read_csv('../data/ArchaeoGLOBE_Public_Data_2018_08_14.csv') %>%
+  filter(RN_SITES != '17899')
+```
+
+Take a closer look at the database to make sure all is well.
+```{r}
+glimpse(dat)
+```
+
+Next import the regions shapefile.
+```{r}
+regions <- st_read('../data/ArchaeGLOBE_Regions.shp')
+```
+
+Take a closer look.
+```{r}
+glimpse(regions)
+```
+
+
+
+## Plotting
+Next let's explore some sample plots
+```{r}
+ggplot() + 
+  geom_sf(data = regions) +
+  theme_minimal() +
+  ggtitle('ArchaeoGLOBE regions')
+```
+
+Next try plotting the estimated number of sites. First define an ordering for the number of sites estimate, to aid in plotting.
+```{r}
+n_sites <- c('< 50', '50-249', '250-499', '500-999', '> 1000')
+```
+
+Now, modify the `RN_SITES` column to be an ordered factor using the above sequence. Then calculate the most common response for each region, and plot the result
+```{r}
+dat %>% 
+  select(REGION_ID, RN_SITES) %>% # just select the columns of interest
+  mutate(RN_SITES = ordered(RN_SITES, levels = n_sites)) %>% # create an ordered factor
+  group_by(REGION_ID) %>% # focus on each region separately
+  count(RN_SITES) %>% # count the number of responses for each site number
+  slice(which.max(n)) %>% # choose the most selected response for each region
+  left_join(regions, ., by = c('Archaeo_ID' = 'REGION_ID')) %>% # join to the region shapes
+  ggplot() + # plot
+    geom_sf(aes(fill = RN_SITES), color = 'white') +
+    theme_minimal() +
+    ggtitle('ArchaeoGLOBE regions', 'Estimated number of excavated sites')
+
+```
+
