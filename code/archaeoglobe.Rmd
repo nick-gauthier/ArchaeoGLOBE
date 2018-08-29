@@ -27,23 +27,141 @@ library(mgcv)
 ## Data import
 Read in the latest version of the ArchaeoGLOBE database.
 ```{r}
-dat <- read_csv('../data/ArchaeoGLOBE_Public_Data_2018_08_14.csv') %>%
-  filter(RN_SITES != '17899')
-```
-
-Take a closer look at the database to make sure all is well.
-```{r}
-glimpse(dat)
+dat <- read_csv('../data/ArchaeoGLOBE_Public_Data_2018_08_14.csv')
 ```
 
 Next import the regions shapefile.
 ```{r}
-regions <- st_read('../data/ArchaeGLOBE_Regions.shp')
+regions <- st_read('../data/ArchaeGLOBE_Regions.shp') %>%
+  mutate(Archaeo_ID = as.factor(Archaeo_ID))
 ```
 
-Take a closer look.
+## Analysis of expertise
+How does the self-professed level of expertise vary in each region over time?
+First, make a dataset just of the expertise data.
 ```{r}
-glimpse(regions)
+exp_dat <- dat %>%
+  select(1:18) %>% # select the first 18 columns
+  gather(time, expertise, 9:18) %>% # convert the data to long format, with one expertise value per row
+  mutate(time = parse_number(time) * -1, # convert time period labels to years
+         expertise = ordered(expertise, levels = c('None', 'Low', 'High')),
+         exp_num = as.numeric(expertise),
+         region = as.factor(REGION_LAB))
+```
+
+Before doing everything else, let's plot out the data.
+```{r}
+ggplot(exp_dat, aes(time, expertise, group = region)) +
+  stat_smooth(geom='line', alpha=0.3, se=FALSE, method = 'loess') +
+  facet_wrap(~WORLD_LAB) +
+  theme_minimal()
+```
+
+The above plot might be somewhat misleading, because we aren't accounting for individual observer effects, such as observers who are more likely to enter high expertise regardless of region. Let's try fitting a multilevel model.
+
+Inspiration for this analysis from here: https://cdn.rawgit.com/eric-pedersen/mgcv-esa-workshop/master/example-forest-health.html
+
+
+
+Next fit some models.
+First fit only a global smooth term. The first model fits only the global trend, the second fits a global trend w/ group-specific intercepts, and the third penalizes both the smooth term and the group-specific intercepts toward the global mean.
+
+```{r fit_gam}
+ctrl <- gam.control(nthreads = 3)
+fit_gam <- function(x){
+  gam(x, method = 'ML',
+         family = ocat(R = 3),
+         control = ctrl,
+         data = exp_dat)
+}
+```
+
+Now we write out a list of potential model structures, and fit gams using all of them. Calculate the AICs for each formula, link function combination, and reorder the amount from the lowest AIC
+```{r exp_models}
+exp_models <- c(
+    "s(time) + s(region, bs = 're')",
+    "s(time, region, bs = 'fs')",
+    "s(time) + s(time, region, bs = 'fs')",
+    "s(time, by = region) + s(region, bs = 're')"
+   ) %>%
+  paste('exp_num ~ ', .) %>%
+  tibble(formula_chr = .) %>%
+  mutate(formula = map(formula_chr, as.formula), 
+         model = map(formula, fit_gam)) %>%
+  mutate(aic = map_dbl(model, AIC)) %>%
+  arrange(aic)
+```
+```{r}
+saveRDS(exp_models, 'exp_models')
+```
+
+Compare the AICs of the result
+```{r}
+exp_models
+```
+
+```{r}
+expand.grid(time = seq(-10000,2000, by = 500), region = exp_dat$region) %>%
+  mutate(., pred = predict(exp_models[[2,3]], ., type = 'link')) %>%
+  filter(region != "Northern Kazakhstan") %>%
+  ggplot(aes(time, pred, group = region, color = region)) +
+  geom_line(alpha = .4) +
+  guides(color= FALSE)
+
+expand.grid(time = seq(-10000,2000, by = 100), region = exp_dat$region) %>%
+  mutate(., pred = predict(exp_models[[2,3]], ., type = 'link')) %>%
+  filter(pred> 10)
+
+expand.grid(time = seq(-10000,2000, by = 500), region = exp_dat$region) %>%
+  mutate(., pred = predict(exp_models[[2,3]], ., type = 'link')) %>%
+   ggplot(aes(time, pred, group = region, color = region)) +
+  geom_line(alpha = .4) +
+  guides(color= FALSE)
+
+dat %>% filter(REGION_LAB == "Tunisia")
+```
+
+```{r}
+mod8 <- gam(exp_num ~ s(period, WORLD_LAB, bs = 'fs'), 
+            data = exp_dat, family = ocat(R = 3), 
+            method = 'REML', select = F)
+mod9 <- gam(exp_num ~ te(period, WORLD_LAB, bs = c('tp', 're')) + s(WORLD_LAB, bs = 're'), 
+            data = exp_dat, family = ocat(R = 3), 
+            method = 'REML', select = T)
+```
+
+```{r}
+mod10 <- bam(exp_num ~ s(period, bs = 'cr', by = REGION_LAB) + s(REGION_LAB, bs = 're'), 
+            data = exp_dat, family = ocat(R = 3), 
+            select = T, nthreads = 4)
+```
+
+
+
+```{r}
+#st_queen <- function(a, b = a) st_relate(a, b, pattern = 'F***T****')
+#st_queen(regions)
+#st_intersects(regions, sparse = TRUE)
+neighb <- spdep::poly2nb(as(regions, 'Spatial'), row.names = regions$Archaeo_ID) %>%
+  lapply(function(xx) regions$Archaeo_ID[xx] %>% factor(levels = levels(regions$Archaeo_ID))) %>%
+  set_names(regions$Archaeo_ID)
+
+ctrl <- gam.control(nthreads = 2)
+mod5 <- gam(exp_num ~ te(period, REGION_ID, bs = c('cr', 'mrf'), k = c(10, 100), xt = list(nb = neighb)), 
+            data = exp_dat, family = ocat(R = 3), method = 'REML',
+            select = FALSE, control = ctrl)
+
+mod6 <- gam(exp_num ~ s(period, bs = 'cr')  + s(REGION_ID, bs = 'mrf', k = 100, xt = list(nb = neighb)) + ti(period, REGION_ID, bs = c('cr', 'mrf'), k = c(10, 100), xt = list(nb = neighb)), 
+            data = exp_dat, family = ocat(R = 3), method = 'REML',
+            select = FALSE, control = ctrl)
+
+plot(mod6)
+test <- expand.grid(period = seq(-10000,2000, by = 100), REGION_ID = factor(1:146))
+test %>%
+  mutate(pred = predict(mod6, test, type = 'link')) %>%
+  ggplot(aes(period, pred, group = REGION_ID, color = REGION_ID)) +
+  geom_line(alpha = .4) +
+  guides(color= FALSE)
 ```
 
 
@@ -75,7 +193,6 @@ dat %>%
     geom_sf(aes(fill = RN_SITES), size=.3, color = 'white', alpha=0.9) +
     theme_minimal() +
     ggtitle('ArchaeoGLOBE regions', 'Estimated number of excavated sites')
-
 ```
 
 ```{r}
@@ -100,113 +217,5 @@ dat %>%
     geom_sf(aes(fill = RN_SITES), size=.3, color = 'white', alpha=0.9) +
     theme_minimal() +
     ggtitle('ArchaeoGLOBE regions', 'Estimated number of excavated sites')
-```
-
-
-## Analysis of expertise
-How does the self-professed level of expertise vary in each region over time?
-
-Before doing everything else, let's plot out the data.
-```{r}
-dat %>%
-  select(1:18) %>% # select the first 18 columns
-  gather(period, expertise, 9:18) %>%
-  mutate(period = parse_number(period),
-         expertise = ordered(expertise, levels = c('None', 'Low', 'High'))) %>%
-  ggplot(aes(period, expertise, group = REGION_LAB)) +
-  scale_x_reverse() +
-  stat_smooth(geom='line', alpha=0.3, se=FALSE, method = 'loess') +
-  facet_wrap(~WORLD_LAB) +
-  theme_minimal()
-```
-
-The LOESS fits may be deceiving, as there might be very few datapoints per region. What if we restrict it to linear fits?
-
-```{r}
-dat %>%
-  select(1:18) %>% # select the first 18 columns
-  gather(period, expertise, 9:18) %>%
-  mutate(period = parse_number(period),
-         expertise = ordered(expertise, levels = c('None', 'Low', 'High'))) %>%
-  ggplot(aes(period, expertise, group = REGION_LAB)) +
-  scale_x_reverse() +
-  stat_smooth(geom='line', alpha=0.3, se=FALSE, method = 'lm') +
-  facet_wrap(~WORLD_LAB) +
-  theme_minimal()
-```
-
-The above plot might still be somewhat misleading, because we aren't accounting for individual observer effects, such as observers who are more likely to enter high expertise regardless of region. Let's try fitting a multilevel model.
-
-Inspiration for this analysis from here: https://cdn.rawgit.com/eric-pedersen/mgcv-esa-workshop/master/example-forest-health.html
-
-First, make a dataset just of the expertise data.
-```{r}
-exp_dat <-dat %>%
-  select(1:18) %>% # select the first 18 columns
-  gather(period, expertise, 9:18) %>% # convert the data to long format, with one expertise value per row
-  mutate(period = parse_number(period) * -1, # convert time period labels to years
-         expertise = ordered(expertise, levels = c('None', 'Low', 'High')),
-         exp_num = as.numeric(expertise),
-         WORLD_LAB = as.factor(WORLD_LAB))
-```
-
-Next fit some models.
-First fit only a global smooth term. The first model fits only the global trend, the second fits a global trend w/ group-specific intercepts, and the third penalizes both the smooth term and the group-specific intercepts toward the global mean.
-```{r}
-mod1 <- gam(exp_num ~ s(period, bs = 'cr'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = F)
-mod2 <- gam(exp_num ~ s(period, bs = 'cr') + REGION_LAB, 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = F)
-mod3 <- gam(exp_num ~ s(period, bs = 'cr') + s(REGION_LAB, bs = 're'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = T)
-
-exp_dat$REGION_LAB %>% unique
-plot(mod1)
-plot(mod2)
-plot(mod3)
-```
-
-```{r}
-mod4 <- gam(exp_num ~ s(period, bs = 'cr') + s(period, WORLD_LAB, bs = 'fs'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = F)
-mod5 <- gam(exp_num ~ ti(period) + ti(period, WORLD_LAB, bs = c('tp', 're')) + ti(WORLD_LAB, bs = 're'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = F)
-mod6 <- gam(exp_num ~ ti(period) + ti(period, WORLD_LAB, bs = c('tp', 're')) + ti(WORLD_LAB, bs = 're'),
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = T)
-
-plot(mod4)
-```
-
-
-```{r}
-mod7 <- gam(exp_num ~ s(period, bs = 'cr') + s(period, by = WORLD_LAB, bs = 'cr') + s(WORLD_LAB, bs = 're'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = T)
-```
-
-```{r}
-mod8 <- gam(exp_num ~ s(period, WORLD_LAB, bs = 'fs'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = F)
-mod9 <- gam(exp_num ~ te(period, WORLD_LAB, bs = c('tp', 're')) + s(WORLD_LAB, bs = 're'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = T)
-```
-
-```{r}
-mod10 <- gam(exp_num ~ s(period, bs = 'cr', by = WORLD_LAB) + s(WORLD_LAB, bs = 're'), 
-            data = exp_dat, family = ocat(R = 3), 
-            method = 'REML', select = T)
-```
-
-```{r}
-summary(mod10)
-plot(mod10)
 ```
 
