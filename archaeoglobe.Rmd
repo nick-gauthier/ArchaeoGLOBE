@@ -3,13 +3,13 @@ title: "ArchaeoGLOBE trend analysis"
 author: "Nick Gauthier"
 date: "August 23, 2018"
 output: 
+  pdf_document: 
+    highlight: pygments
+    latex_engine: lualatex
   html_document: 
     highlight: pygments
     keep_md: yes
     theme: cosmo
-  pdf_document: 
-    highlight: pygments
-    latex_engine: lualatex
 ---
 
 ```{r setup, include=FALSE}
