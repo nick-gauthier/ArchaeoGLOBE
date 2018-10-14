@@ -67,7 +67,7 @@ qual_dat <- dat %>%
 
 Finally import the regions shapefile.
 ```{r, message = FALSE}
-regions <- st_read('data/ArchaeGLOBE_Regions.shp')
+regions <- st_read('data/Simplified_Regions2.shp')
 ```
 
 ## Analysis of expertise
@@ -123,39 +123,39 @@ plot(exp_mod, select = 0) %>%
 
 Now let's investigate the local deviations from this global trend. Start by extracting the fitted splines for each region, ignoring factors such as the global trend and region and contributor specific intercepts so that the focus is on the shape of the local trends.
 ```{r}
+n_clusters <- 6
+set.seed(1000) # set seed for reproduceability
 exp_local_trends <- exp_mod %>%
   plot(select = 0) %>% # plot for the side effect of printing smoothed fits
   .[2:147] %>% # extract the local trends
   map(~tibble(region =.$ylab, time = .$x, fit = c(.$fit))) %>% 
   bind_rows %>%
   mutate(fit = plogis(fit)) %>%
-  spread(time, fit)
+  spread(time, fit) %>%
+  mutate(cluster = kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster,
+         cluster = recode_factor(cluster, 
+                                 `6` = '1', `4` = '2', `5` = '3',
+                                 `3` = '4', `1` = '5', `2` = '6'))
 ```
 
 Now we cluster together the local deviations from the global trend using a k-means algorithm. We need to set the seed first to ensure reproduceability of the cluster solutions and ordering. The selection of 8 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal of retaining as few clusters as possible while keeping their interpretations distinct.
 ```{r}
-n_clusters <- 8 
-
-set.seed(1000) # set seed for reproduceability
 exp_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>%
   gather(time, expertise, 2:101) %>%
   ggplot(aes(as.numeric(time) / 1000, expertise, 
              group = region, color = cluster)) +
   geom_line() +
-  scale_color_brewer(palette = 'Set2', guide = 'none') +
+  scale_color_brewer(palette = 'PuOr', guide = 'none') +
   facet_wrap(~cluster, nrow = 2) +
   labs(title = 'Local deviations from global trend in expertise',
-       subtitle = paste(n_clusters, ' cluster solution, k-means'),
+       subtitle = paste(n_clusters, 'cluster solution, k-means'),
        x = 'Thousand years BP', y = 'Expertise level') +
   theme_bw()
 ```
 
 Next we map out the archaeological regions, showing which region belongs to each cluster.
 ```{r message = FALSE}
-set.seed(1000) # use the same seed as before so clusters match
 exp_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>% 
   select(region, cluster) %>% # just select the columns of interest
   separate(region, c('extra', 'region'), sep =  'region') %>%
   left_join(select(exp_dat, region:region_id)) %>%
@@ -164,8 +164,8 @@ exp_local_trends %>%
   filter(row_number() == 1) %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'region_id')) %>% # join to the region shapes
   ggplot() + # plot
-  geom_sf(aes(fill = cluster), size=.3, color = 'grey95', alpha=0.9) +
-  scale_fill_brewer(palette = 'Set2', guide = 'none') +  
+  geom_sf(aes(fill = cluster), size=.3, color = 'white', alpha=0.9) +
+  scale_fill_brewer(palette = 'PuOr', guide = 'none') +  
   labs(subtitle = 'Archaeoglobe regions',
        title = 'Local deviations from the global trend in expertise') +
   theme_minimal()
@@ -225,26 +225,28 @@ plot(qual_mod, select = 0) %>%
 
 
 ```{r}
+n_clusters <- 6
+set.seed(1000)
 qual_local_trends <- qual_mod %>%
   plot(select = 0) %>% # plot for the side effect of printing smoothed fits
   .[2:147] %>% # extract the local trends
   map(~tibble(region =.$ylab, time = .$x, fit = c(.$fit))) %>% 
   bind_rows %>%
   mutate(fit = plogis(fit)) %>%
-  spread(time, fit)
+  spread(time, fit) %>%
+  mutate(cluster = kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster,
+         cluster = recode_factor(cluster, 
+                                 `6` = '1', `1` = '2',`5` = '3', 
+                                 `3` = '4', `4` = '5', `2` = '6'))
 ```
 
 We select a 8 cluster solution here, although as above the cluster selection is done primarily to aide visual interpretation and should not be taken as the only possible solution.
 ```{r}
-n_clusters <- 8
-
-set.seed(1000)
 qual_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>%
   gather(time, quality, 2:101) %>%
   ggplot(aes(as.numeric(time) / 1000, quality, group = region, color = cluster)) +
   geom_line() +
-  scale_color_brewer(palette = 'Set2', guide = 'none') +
+  scale_color_brewer(palette = 'PuOr', guide = 'none') +
   facet_wrap(~cluster, nrow = 2) +
   labs(title = 'Local deviations from global trend in data quality',
        subtitle = paste(n_clusters, ' cluster solution, k-means'),
@@ -254,10 +256,7 @@ qual_local_trends %>%
 
 Map the clusters once more.
 ```{r}
-set.seed(1000)
 qual_local_trends %>%
-  mutate(cluster = as.factor(
-    kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>% 
   select(region, cluster) %>% # just select the columns of interest
   separate(region, c('extra', 'region'), sep =  'region') %>%
   left_join(select(qual_dat, region:region_id)) %>%
@@ -266,8 +265,8 @@ qual_local_trends %>%
   filter(row_number() == 1) %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'region_id')) %>% # join to the region shapes
   ggplot() + # plot
-    geom_sf(aes(fill = cluster), size=.3, color = 'grey95', alpha=0.9) +
-    scale_fill_brewer(palette = 'Set2', guide = 'none') +  
+    geom_sf(aes(fill = cluster), size=.3, color = 'white', alpha=0.9) +
+    scale_fill_brewer(palette = 'PuOr', guide = 'none') +  
     labs(subtitle = 'Archaeoglobe regions',
          title = 'Local deviations from the global trend in data quality') +
     theme_minimal()
@@ -290,21 +289,17 @@ p1 <- plot(exp_mod, select = 0) %>%
   labs(title = 'A', x = 'Thousand years BP', y = 'Expertise') +
   theme_bw()
 
-set.seed(1000) # set seed for reproduceability
 p2 <- exp_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>%
   gather(time, expertise, 2:101) %>%
   ggplot(aes(as.numeric(time) / 1000, expertise, 
              group = region, color = cluster)) +
   geom_line() +
-  scale_color_brewer(palette = 'Set2', guide = 'none') +
+  scale_color_brewer(palette = 'PuOr', guide = 'none') +
   facet_wrap(~cluster, nrow = 2) +
-  labs(title = 'B', x = 'Thousand years BP', y = 'Expertise level') +
-  theme_bw()
+  labs(title = 'B', x = 'Thousand years BP', y = 'Expertise') +
+  theme_minimal()
 
-set.seed(1000) # use the same seed as before so clusters match
 p3 <- exp_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>% 
   select(region, cluster) %>% # just select the columns of interest
   separate(region, c('extra', 'region'), sep =  'region') %>%
   left_join(select(exp_dat, region:region_id)) %>%
@@ -313,8 +308,8 @@ p3 <- exp_local_trends %>%
   filter(row_number() == 1) %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'region_id')) %>% # join to the region shapes
   ggplot() + # plot
-  geom_sf(aes(fill = cluster), size=.3, color = 'grey95', alpha=0.9) +
-  scale_fill_brewer(palette = 'Set2', guide = 'none') +  
+  geom_sf(aes(fill = cluster), size = .3, color = 'white', alpha = 0.9) +
+  scale_fill_brewer(palette = 'PuOr', guide = 'none') +  
   labs(title = 'C') +
   theme_bw()
 
@@ -330,21 +325,16 @@ p4 <- plot(qual_mod, select = 0) %>%
   labs(title = 'A', x = 'Thousand years BP', y = 'Data quality') +
   theme_bw()
 
-set.seed(1000)
 p5 <- qual_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>%
   gather(time, quality, 2:101) %>%
   ggplot(aes(as.numeric(time) / 1000, quality, group = region, color = cluster)) +
   geom_line() +
-  scale_color_brewer(palette = 'Set2', guide = 'none') +
+  scale_color_brewer(palette = 'PuOr', guide = 'none') +
   facet_wrap(~cluster, nrow = 2) +
   labs(title = 'B', x = 'Thousand years BP', y = 'Data quality') +
-  theme_bw()
+  theme_minimal()
 
-set.seed(1000)
 p6 <- qual_local_trends %>%
-  mutate(cluster = as.factor(
-    kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>% 
   select(region, cluster) %>% # just select the columns of interest
   separate(region, c('extra', 'region'), sep =  'region') %>%
   left_join(select(qual_dat, region:region_id)) %>%
@@ -353,8 +343,8 @@ p6 <- qual_local_trends %>%
   filter(row_number() == 1) %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'region_id')) %>% # join to the region shapes
   ggplot() + # plot
-    geom_sf(aes(fill = cluster), size=.3, color = 'grey95', alpha=0.9) +
-    scale_fill_brewer(palette = 'Set2', guide = 'none') +  
+    geom_sf(aes(fill = cluster), size=.3, color = 'white', alpha=0.9) +
+    scale_fill_brewer(palette = 'PuOr', guide = 'none') +  
     labs(title = 'C') +
     theme_bw()
 ```
