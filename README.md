@@ -1,7 +1,7 @@
 ---
 title: "ArchaeoGLOBE trend analysis"
 author: "Nick Gauthier"
-date: "August 23, 2018"
+date: "Last knit on: 15 October, 2018"
 output: 
   html_document: 
     highlight: pygments
@@ -21,8 +21,10 @@ We fit two sets of trends. One trend is fitted to all the data simultaneously, r
 
 After fitting the model, we can extract the region-specific diviations from the global trend, use a k-means clustering alogirithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
 
-## Setup
-Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the expertise and quality datasets. We'll use the `sf` package to help us plot shapefiles in a tidy context. Finally, we'll use `patchwork` to combine multiple ggplots in the same image.
+# Setup
+
+Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` package to help us plot shapefiles in a tidy context. Finally, we'll use `patchwork` to combine multiple ggplots in the same image.
+
 
 ```r
 library(tidyverse)
@@ -35,337 +37,152 @@ library(patchwork)
 ```
 
 ## Data import
-Read in the latest version of the ArchaeoGLOBE database.
 
-```r
-dat <- read_csv('data/Survey_scrubbed_Aug20_IDs.csv') %>% 
-  select(contributor = CONTRIBUTR,
-         macroregion = WORLD_LAB,
-         region = REGION_LAB,
-         region_id = REGION_ID,
-         EXP_10000:DQ_00150) %>%
-  mutate_all(as.factor)
-```
-
-```
-## Parsed with column specification:
-## cols(
-##   .default = col_character(),
-##   WORLD_ID = col_integer(),
-##   REGION_ID = col_integer(),
-##   TOT_AREA = col_double(),
-##   LAND_AREA = col_double()
-## )
-```
-
-```
-## See spec(...) for full column specifications.
-```
-
-Separate the ArchaeoGLOBE data into expertise and quality datasets, each in long "tidy" format to make analysis and plotting easier.
-
-```r
-exp_dat <- dat %>%
-  select(-c(DQ_10000:DQ_00150)) %>% # drop the DQ columns
-  gather(time, expertise, EXP_10000:EXP_00150) %>% # format so one expertise value per row
-  mutate(time = parse_number(time) * -1, # convert time period labels to years
-         expertise = ordered(expertise, levels = c('None', 'Low', 'High')),
-         exp_num = as.numeric(expertise))
-
-qual_dat <- dat %>%
-  select(-c(EXP_10000:EXP_00150)) %>% # drop the EXP columns columns
-  mutate_at(vars(DQ_10000:DQ_00150), funs(ordered(., levels = c('Unknown', 'Low', 'Moderate', 'Good')))) %>%
-  gather(time, quality, DQ_10000:DQ_00150) %>% # format so one expertise value per row
-  mutate(time = parse_number(time) * -1, # convert time period labels to years
-         quality = ordered(quality, levels = c('Unknown', 'Low', 'Moderate', 'Good')),
-         qual_num = as.numeric(quality))
-```
-
-Finally import the regions shapefile.
-
-```r
-regions <- st_read('data/ArchaeGLOBE_Regions.shp')
-```
-
-```
-## Reading layer `ArchaeGLOBE_Regions' from data source `/home/nick/gdrive/Projects/ArchaeoGLOBE/data/ArchaeGLOBE_Regions.shp' using driver `ESRI Shapefile'
-## Simple feature collection with 146 features and 6 fields
-## geometry type:  MULTIPOLYGON
-## dimension:      XY
-## bbox:           xmin: -16653410 ymin: -6637605 xmax: 16821760 ymax: 8375497
-## epsg (SRID):    NA
-## proj4string:    +proj=eck4 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
-```
-
-## Analysis of expertise
-How does self-professed level of expertise vary in each region over time?
-
-Before doing anything else, let's plot out the data.
-
-```r
-ggplot(exp_dat, aes(time / 1000, expertise, group = region)) +
-  stat_smooth(geom='line', alpha=0.3, se=FALSE, method = 'loess') +
-  facet_wrap(~macroregion, nrow = 3) +
-  labs(title = 'Self-reported expertise', 
-       subtitle = 'Time-varying trends, by archaeological region',
-       x = 'Thousands of years BP', y = 'Level of expertise') +
-  theme_bw()
-```
-
-![](archaeoglobe_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
-
-This plot will be somewhat misleading, because we aren't accounting for individual observer effects, such as observers who are more likely to enter high expertise regardless of region. Let's try fitting a multilevel GAM.
+Read in the latest version of the ArchaeoGLOBE database and the regions shapefile.
 
 
 ```r
-exp_mod <- bam(exp_num ~ 
-              # this spline is for the global trend
-              s(time, bs = 'cr', m = 2) + 
-              # region-specific trends. bs = 'ts' and m = 1 
-              # help penalize deviation from the global model
-              s(time, by = region, bs = 'cs', m = 1) + 
-              # add back in region-specific intercepts
-              region +
-              # model contributor as a random effect
-              s(contributor, bs = 're', k = 252),
-         method = 'fREML',
-         discrete = TRUE,
-         nthreads = 2,
-         family = ocat(R = 3), # ordered categorical with 3 levels
-         data = exp_dat)
+archaeoglobe <- read_csv('data/Survey_scrubbed_Aug20_IDs.csv')
+regions <- st_read('data/Simplified_Regions2.shp', quiet = TRUE)
 ```
 
-First we plot the global trend. We see a linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
+## Analysis functions
+
+Define some analysis functions that we'll be using repeatedly in the analysis, so that we don't have to keep copying and pasting the same lines of code.
+
+This function subsets the data to highlight a variable of interest, and converts it from a wide to a long "tidy" format to make analysis and plotting easier.
+
 
 ```r
-plot(exp_mod, select = 0) %>%
-  .[1] %>%
-  map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-  .[[1]] %>%
-  ggplot(aes(time / 1000, plogis(fit)))+
-  geom_line() +
-  geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-  geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-  scale_y_continuous(limits = c(0,1)) +
-  labs(title = 'Global trend in expertise',
-       subtitle = 'All regions, 95% confidence interval',
-       x = 'Thousand years BP', y = 'Expertise') +
-  theme_bw()
+preprocess <- function(prefix, categories){
+  archaeoglobe %>% # start with the full ArcheoGlobe data
+    # drop columns not related to the variable of interest
+    select(c(CONTRIBUTR:LAND_AREA, starts_with(prefix))) %>%
+    gather(time, value, starts_with(prefix)) %>% # one value per row
+    mutate(time = parse_number(time) * -1, # convert time period labels to years
+           value = ordered(value, levels = categories),
+           cat_num = as.numeric(value)) %>%
+    mutate_if(is.character, as.factor) # convert characters to factors
+}
 ```
 
-![](archaeoglobe_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
+This function takes a data frame produced by the above function and fits GAM to the global trend and local deviations for each region, accounting for inter-observer variability. This function takes as arguments a preprocessed data frame containing time slices, regions, contributors, and the ordered categorical response variable transformed to a numeric vector. 
 
-Now let's investigate the local deviations from this global trend. Start by extracting the fitted splines for each region, ignoring factors such as the global trend and region and contributor specific intercepts so that the focus is on the shape of the local trends.
 
 ```r
-exp_local_trends <- exp_mod %>%
-  plot(select = 0) %>% # plot for the side effect of printing smoothed fits
+fit_model <- function(x, n_cats){
+  bam(cat_num ~ 
+        # this spline is for the global trend
+        s(time, bs = 'cr', m = 2) + 
+        # region-specific trends. bs = 'ts' and m = 1 
+        # help penalize deviation from the global model
+        s(time, by = REGION_LAB, bs = 'cs', m = 1) + 
+        # add back in region-specific intercepts
+        REGION_LAB +
+        # model contributor as a random effect
+        s(CONTRIBUTR, bs = 're', k = 252),
+      data = x, # data frame to analyize
+      family = ocat(R = n_cats), # ordered categorical with n levels
+      # final 3 arguments just speed up the model fitting
+      method = 'fREML',
+      discrete = TRUE,
+      nthreads = 2)
+}
+```
+
+This function extracts the fitted splines for each region, ignoring factors such as the global trend and region and contributor specific intercepts so that the focus is on the shape of the local trends. Then it clusters these local deviations from the global trend into discrete clusters.
+
+
+```r
+extract_trends <-function(mod, n_clusters = 6){
+  set.seed(1000)
+  mod %>%
+  plot(select = 0, n = 25) %>% # plot for the side effect of printing smoothed fits
   .[2:147] %>% # extract the local trends
   map(~tibble(region =.$ylab, time = .$x, fit = c(.$fit))) %>% 
   bind_rows %>%
   mutate(fit = plogis(fit)) %>%
-  spread(time, fit)
+  spread(time, fit) %>%
+  mutate(cluster = kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)
+}
 ```
 
-Now we cluster together the local deviations from the global trend using a k-means algorithm. We need to set the seed first to ensure reproduceability of the cluster solutions and ordering. The selection of 8 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal of retaining as few clusters as possible while keeping their interpretations distinct.
+# Analysis
 
-```r
-n_clusters <- 8 
-
-set.seed(1000) # set seed for reproduceability
-exp_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>%
-  gather(time, expertise, 2:101) %>%
-  ggplot(aes(as.numeric(time) / 1000, expertise, 
-             group = region, color = cluster)) +
-  geom_line() +
-  scale_color_brewer(palette = 'Set2', guide = 'none') +
-  facet_wrap(~cluster, nrow = 2) +
-  labs(title = 'Local deviations from global trend in expertise',
-       subtitle = paste(n_clusters, ' cluster solution, k-means'),
-       x = 'Thousand years BP', y = 'Expertise level') +
-  theme_bw()
-```
-
-![](archaeoglobe_files/figure-html/unnamed-chunk-8-1.png)<!-- -->
-
-Next we map out the archaeological regions, showing which region belongs to each cluster.
-
-```r
-set.seed(1000) # use the same seed as before so clusters match
-exp_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>% 
-  select(region, cluster) %>% # just select the columns of interest
-  separate(region, c('extra', 'region'), sep =  'region') %>%
-  left_join(select(exp_dat, region:region_id)) %>%
-  mutate(region_id = as.numeric(region_id)) %>%
-  group_by(region) %>%
-  filter(row_number() == 1) %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'region_id')) %>% # join to the region shapes
-  ggplot() + # plot
-  geom_sf(aes(fill = cluster), size=.3, color = 'grey95', alpha=0.9) +
-  scale_fill_brewer(palette = 'Set2', guide = 'none') +  
-  labs(subtitle = 'Archaeoglobe regions',
-       title = 'Local deviations from the global trend in expertise') +
-  theme_minimal()
-```
-
-```
-## Warning: Column `region` joining character vector and factor, coercing into
-## character vector
-```
-
-![](archaeoglobe_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
-
-## Analysis of data quality
-Repeat the above analysis, now looking at how perceptions of data quality vary in each region over time.
-
-Start with just a naive plot of the data.
-
-```r
-ggplot(qual_dat, aes(time / 1000, quality, group = region)) +
-  stat_smooth(geom = 'line', alpha = 0.3, se = FALSE, method = 'loess') +
-  facet_wrap(~macroregion, nrow = 3) +
-  labs(title = 'Perceived data quality', 
-       subtitle = 'Time-varying trends, by archaeological region',
-       x = 'Thousands of years BP', y = 'Perceived data quality') +
-  theme_bw()
-```
-
-![](archaeoglobe_files/figure-html/unnamed-chunk-10-1.png)<!-- -->
-
-Next fit the GAM.
-
-```r
-qual_mod <- bam(qual_num ~ 
-              # this spline is for the global trend
-              s(time, bs = 'cr', m = 2) + 
-              # region-specific trends. bs = 'ts' and m = 1 
-              # help penalize deviation from the global model
-              s(time, by = region, bs = 'cs', m = 1) + 
-              # we need to add back in region-specific intercepts
-              region +
-              # model contributor as a random effect
-              s(contributor, bs = 're', k = 252),
-         method = 'fREML',
-         discrete = TRUE,
-         nthreads = 2,
-         family = ocat(R = 4), # ordered categorical with 4 levels
-         data = qual_dat)
-```
-
-The global trend is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
+Now we use the functions defined above on the ArchaeoGlobe data. For convenience, first define a data frame that lists the prefixes of the variables we are interested in (e.g. "EXP" for expertise) and the levels of the ordered factors associated with each variable. This will make it easier to quickly focus on a specific variable. The `tribble` command is simply a way to make a data frame by row rather than column, which makes the code easier to read.
 
 
 ```r
-plot(qual_mod, select = 0) %>%
-  .[1] %>%
-  map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-  .[[1]] %>%
-  ggplot(aes(time / 1000, plogis(fit)))+
-  geom_line() +
-  geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-  geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-  scale_y_continuous(limits = c(0,1)) +
-  labs(title = 'Global trend in data quality',
-       subtitle = 'All regions, 95% confidence interval',
-       x = 'Thousand years BP', y = 'Data quality') +
-  theme_bw()
+response_levels <- tribble(
+  ~prefix, ~categories,
+  'EXP', c('None', 'Low', 'High'),
+  'DQ', c('Unknown', 'Low', 'Moderate', 'Good'),
+  'HUNT', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
+  'EXAG', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
+  'INAG', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
+  'PAST', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
+  'URBN', c('Absent', 'Present')
+)
 ```
 
-![](archaeoglobe_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
-
-
+Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single goal, and save all the outputs in a tibble format for easy plotting. This will take a long time, so the results are cached by default for future use.
 
 
 ```r
-qual_local_trends <- qual_mod %>%
-  plot(select = 0) %>% # plot for the side effect of printing smoothed fits
-  .[2:147] %>% # extract the local trends
-  map(~tibble(region =.$ylab, time = .$x, fit = c(.$fit))) %>% 
-  bind_rows %>%
-  mutate(fit = plogis(fit)) %>%
-  spread(time, fit)
+trend_dat <- response_levels %>%
+  mutate(data = map2(prefix, categories, ~preprocess(.x, .y)),
+         n_cats = map_dbl(categories, length), 
+         mod = map2(data, n_cats, fit_model),
+         trends = map(mod, extract_trends))
 ```
 
-We select a 8 cluster solution here, although as above the cluster selection is done primarily to aide visual interpretation and should not be taken as the only possible solution.
+# Results
 
-```r
-n_clusters <- 8
 
-set.seed(1000)
-qual_local_trends %>%
-  mutate(cluster = as.factor(kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>%
-  gather(time, quality, 2:101) %>%
-  ggplot(aes(as.numeric(time) / 1000, quality, group = region, color = cluster)) +
-  geom_line() +
-  scale_color_brewer(palette = 'Set2', guide = 'none') +
-  facet_wrap(~cluster, nrow = 2) +
-  labs(title = 'Local deviations from global trend in data quality',
-       subtitle = paste(n_clusters, ' cluster solution, k-means'),
-       x = 'Thousand years BP', y = 'Data quality') +
-  theme_bw()
-```
 
-![](archaeoglobe_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
 
-Map the clusters once more.
 
-```r
-set.seed(1000)
-qual_local_trends %>%
-  mutate(cluster = as.factor(
-    kmeans(.[,-1], n_clusters, iter.max = 100, nstart = 100)$cluster)) %>% 
-  select(region, cluster) %>% # just select the columns of interest
-  separate(region, c('extra', 'region'), sep =  'region') %>%
-  left_join(select(qual_dat, region:region_id)) %>%
-  mutate(region_id = as.numeric(region_id)) %>%
-  group_by(region) %>%
-  filter(row_number() == 1) %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'region_id')) %>% # join to the region shapes
-  ggplot() + # plot
-    geom_sf(aes(fill = cluster), size=.3, color = 'grey95', alpha=0.9) +
-    scale_fill_brewer(palette = 'Set2', guide = 'none') +  
-    labs(subtitle = 'Archaeoglobe regions',
-         title = 'Local deviations from the global trend in data quality') +
-    theme_minimal()
-```
+## Expertise
 
-```
-## Joining, by = "region"
-```
+How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
 
-```
-## Warning: Column `region` joining character vector and factor, coercing into
-## character vector
-```
+Now we cluster together the local deviations from the global trend using a k-means algorithm. The selection of 6 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal making the results visually interpretable. The trajectories in these clusters are deviations from the global trend, so a horizontal line would indicate no deviation from the global trend.
 
-![](archaeoglobe_files/figure-html/unnamed-chunk-14-1.png)<!-- -->
+![Global and regional trends in self-reported expertise. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-10-1.png)
 
-## Plots
 
-Our final step is to combine the results from all the analyses above into two nice figures. We recreate all the plots above (not shown) saving the call to an R object. Then we plot them all together using `patchwork`.
+## Data Quality
+
+The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
+
+![Global and regional trends in perceived data quality. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-11-1.png)
+
+## Hunting
+
+The global trend in hunting shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing hunting earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in hunting.
+
+![Global and regional trends in the areal extent of hunting. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-12-1.png)
+
+## Extensive Agriculture
+
+The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
+
+![Global and regional trends in the areal extent of extensive agriculture. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-13-1.png)
+
+## Intensive Agriculture
+
+See above.
+
+![Global and regional trends in the areal extent of intensive agriculture. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-14-1.png)
+
+## Pastoralism
+
+See above.
+
+![Global and regional trends in the areal extent of pastoralism. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-15-1.png)
 
 
 
 
 
 
-```r
-((p1 | p2 ) + plot_layout(widths = c(1,2))) / 
-  p3 + 
-  plot_layout(heights = c(1,2))
-```
-
-![Global and regional trends in self-reported expertise. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-16-1.png)
-
-
-
-
-```r
-((p4 | p5 ) + plot_layout(widths = c(1,2))) / 
-  p6 + 
-  plot_layout(heights = c(1,2))
-```
-
-![Global and regional trends in perceived data quality. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.](archaeoglobe_files/figure-html/unnamed-chunk-17-1.png)
