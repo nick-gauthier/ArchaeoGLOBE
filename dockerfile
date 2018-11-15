@@ -4,7 +4,7 @@ FROM rocker/verse:3.5.1
 # required
 MAINTAINER Ben Marwick <benmarwick@gmail.com>
 
-COPY . /ArchaeoGLOBE
+COPY . /archaeoglobe
 
 # go into the repo directory
 RUN . /etc/environment \
@@ -18,7 +18,7 @@ RUN . /etc/environment \
   && R -e "devtools::install_github('thomasp85/patchwork')" \
 
   # build this compendium package
-  && R -e "devtools::install('/ArchaeoGLOBE', dep=TRUE)" \
+  && R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
 
  # render the manuscript into a html output
-  && R -e "rmarkdown::render('/ArchaeoGLOBE/archaeoglobe.Rmd')"
+  && R -e "rmarkdown::render('/archaeoglobe/archaeoglobe.Rmd')"

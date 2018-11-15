@@ -12,6 +12,8 @@ output:
     latex_engine: lualatex
 ---
 
+[![Travis-CI Build Status](https://travis-ci.org/benmarwick/ArchaeoGLOBE.svg?branch=master)](https://travis-ci.org/benmarwick/ArchaeoGLOBE)  [![Binder](http://mybinder.org/badge.svg)](http://beta.mybinder.org/v2/gh/binder-examples/r/master?urlpath=rstudio)
+
 
 Sample analysis code for the ArchaeoGlobe database. Here we fit Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
 
