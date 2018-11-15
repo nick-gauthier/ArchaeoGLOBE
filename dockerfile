@@ -4,7 +4,7 @@ FROM rocker/verse:3.5.1
 # required
 MAINTAINER Ben Marwick <benmarwick@gmail.com>
 
-COPY . archaeoglobe
+COPY . /archaeoglobe
 
 # go into the repo directory
 RUN . /etc/environment \
@@ -12,7 +12,7 @@ RUN . /etc/environment \
   # Install linux depedendencies here
   # e.g. need this for ggforce::geom_sina
   && sudo apt-get update \
-  && sudo apt-get install libudunits2-dev -y \
+  && sudo apt-get install libudunits2-dev libgdal1-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev -y \
   
   # install GitHub-only depedendencies
   && R -e "devtools::install_github('thomasp85/patchwork')" \
