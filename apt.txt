@@ -1,0 +1,7 @@
+libudunits2-dev 
+libgdal-dev 
+gdal-bin 
+libproj-dev 
+proj-data 
+proj-bin 
+libgeos-dev
