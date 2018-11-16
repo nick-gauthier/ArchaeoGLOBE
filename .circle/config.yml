@@ -1,0 +1,23 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: debian:stretch
+    steps:
+      - checkout
+      - run:
+          name: Get info
+          command: docker info
+      - run:
+          name: Build the custom container
+          command: docker build -t $DOCKER_USER/archaeoglobe  .
+      - run:
+          name: Run the container to knit the Rmd
+          command: - docker run --name archaeoglobe -d -p 8787:8787 $DOCKER_USER/archaeoglobe          
+     - deploy:
+          name: Publish application to docker hub
+          command: |
+            docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+            docker push $DOCKER_USER/archaeoglobe
+          
+          
