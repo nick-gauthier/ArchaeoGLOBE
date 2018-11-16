@@ -12,8 +12,7 @@ jobs:
           command: docker build -t $DOCKER_USER/archaeoglobe  .
       - run:
           name: Run the container to knit the Rmd
-          command: |
-             docker run --name archaeoglobe -d -p 8787:8787 $DOCKER_USER/archaeoglobe 
+          command: docker run --name archaeoglobe -d -p 8787:8787 $DOCKER_USER/archaeoglobe
           no_output_timeout: 1.5h
       - deploy:
           name: Publish application to docker hub
