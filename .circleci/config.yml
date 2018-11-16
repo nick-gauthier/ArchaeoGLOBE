@@ -13,8 +13,8 @@ jobs:
           command: docker build -t $DOCKER_USER/archaeoglobe  .
       - run:
           name: Run the container to knit the Rmd
-          command: - docker run --name archaeoglobe -d -p 8787:8787 $DOCKER_USER/archaeoglobe          
-     - deploy:
+          command: docker run --name archaeoglobe -d -p 8787:8787 $DOCKER_USER/archaeoglobe          
+      - deploy:
           name: Publish application to docker hub
           command: |
             docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
