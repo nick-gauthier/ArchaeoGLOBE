@@ -5,11 +5,7 @@ date: "Last knit on: `r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document: 
     highlight: pygments
-    keep_md: yes
     theme: cosmo
-  pdf_document: 
-    highlight: pygments
-    latex_engine: lualatex
 ---
 
 ```{r setup, include=FALSE}
@@ -272,7 +268,7 @@ plot_trends('Pastoralism')
 ggsave('figures/trends_pastoralism.png')
 ```
 
-```{r, echo = FALSE}
+```{r, eval = FALSE, echo = FALSE}
 knitr::knit_exit()
 ```
 
