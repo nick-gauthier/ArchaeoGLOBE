@@ -37,3 +37,6 @@ rsconnect/
 .Rproj.user
 
 *.zip
+
+# OSX junk
+.DS_Store
