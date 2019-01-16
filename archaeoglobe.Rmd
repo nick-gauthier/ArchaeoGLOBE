@@ -42,7 +42,7 @@ library(patchwork)
 Read in the latest version of the ArchaeoGLOBE database and the regions shapefile.
 
 ```{r}
-archaeoglobe <- read_csv('data/Survey_scrubbed_Aug20_IDs.csv')
+archaeoglobe <- read_csv('data/ARCHAEOGLOBE_PUBLIC_DATA.csv')
 regions <- st_read('data/Simplified_Regions2.shp', quiet = TRUE)
 ```
 
@@ -64,7 +64,7 @@ a <- regions %>%
   geom_sf(aes(fill = n), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Count', guide = 'legend') +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
-  labs(title = 'Total responses per region', subtitle = '', x = '',y='') +
+  labs(title = 'Total responses per region', subtitle = '', x = '', y='') +
   theme_minimal()
 
 b <- ggplot(response_counts, aes(n)) +
@@ -73,6 +73,7 @@ b <- ggplot(response_counts, aes(n)) +
   labs(x = 'Responses per region', y = 'Number of regions')
 
 a + b + plot_layout(ncol = 1)
+ggsave('figures/response_distribution.png', width = 6.5, height = 8)
 ```
 
 ## Analysis functions
@@ -175,7 +176,7 @@ trend_dat <- response_levels %>%
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
 ```{r, echo = FALSE}
-t1 <- trend_dat[3,]$mod[[1]] %>%
+g1 <- trend_dat[3,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
@@ -188,7 +189,7 @@ t1 <- trend_dat[3,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
     theme_bw()
-t2 <- trend_dat[6,]$mod[[1]] %>%
+g2 <- trend_dat[6,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
@@ -201,7 +202,7 @@ t2 <- trend_dat[6,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'B', x = 'Thousand years BP', y = 'Pastoralism') +
     theme_bw()
-t3 <- trend_dat[4,]$mod[[1]] %>%
+g3 <- trend_dat[4,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
@@ -214,7 +215,7 @@ t3 <- trend_dat[4,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'C', x = 'Thousand years BP', y = 'Extensive \nAgriculture') +
     theme_bw()
-t4 <- trend_dat[5,]$mod[[1]] %>%
+g4 <- trend_dat[5,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
@@ -227,14 +228,40 @@ t4 <- trend_dat[5,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'D', x = 'Thousand years BP', y = 'Intensive \nAgriculture') +
     theme_bw()
+g5 <- trend_dat[1,]$mod[[1]] %>%
+    plot(select = 0) %>% # selects the global trend
+    .[1] %>%
+    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
+    .[[1]] %>%
+    ggplot(aes(time / 1000, plogis(fit)))+
+    geom_line() +
+    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
+    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
+      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
+    scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
+    labs(title = 'E', x = 'Thousand years BP', y = 'Expertise') +
+    theme_bw()
+g6 <- trend_dat[2,]$mod[[1]] %>%
+    plot(select = 0) %>% # selects the global trend
+    .[1] %>%
+    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
+    .[[1]] %>%
+    ggplot(aes(time / 1000, plogis(fit)))+
+    geom_line() +
+    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
+    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
+      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
+    scale_y_continuous(breaks = c(0,1), labels = c('Unknown', 'Good'), limits = c(0,1)) +
+    labs(title = 'F', x = 'Thousand years BP', y = 'Data Quality') +
+    theme_bw()
 
-t1+t2+t3+t4
-ggsave('figures/global_trends.png',height = 8, width = 12)
+(g1 + g2) / (g3 + g4) / (g5 + g6)
+ggsave('figures/global_trends.png', height = 12, width = 12)
 ```
 
 
 ```{r, echo = FALSE}
-plot_trends <- function(x, variable, color_theme = 'PuOr'){
+plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional land-use trends'){
   p1 <- x$trends[[1]] %>%
     gather(time, value, '-10000':'-150') %>%
     ggplot(aes(as.numeric(time) / 1000, value, 
@@ -258,7 +285,7 @@ plot_trends <- function(x, variable, color_theme = 'PuOr'){
     ggplot() + # plot
     geom_sf(aes(fill = as.factor(cluster)), size = .3, color = 'white') +
     geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
-    labs(title = 'Regional land-use trends', subtitle = variable, x = '',y='') +
+    labs(title = title, subtitle = variable, x = '', y='') +
     scale_fill_brewer(palette = color_theme, guide = 'none') +  
     theme_minimal()
   
@@ -305,8 +332,8 @@ See above.
 trend_dat[5, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
-                                `6` = '1', `3` = '2',`4` = '3', 
-                                 `5` = '4', `1` = '5', `2` = '6')))) %>%
+                                `6` = '1', `5` = '2', `3` = '3', 
+                                 `1` = '4', `2` = '5', `4` = '6')))) %>%
 plot_trends('Intensive Agriculture')
 ggsave('figures/trends_intensive.png', height = 8, width = 12)
 ```
@@ -339,8 +366,6 @@ ggsave('figures/trends_urbanism.png', height = 8, width = 12)
 ```
 
 
-
-
 ## Expertise and Data Quality
 
 How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
@@ -349,56 +374,30 @@ Now we cluster together the local deviations from the global trend using a k-mea
 
 The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
 
-```{r, echo = FALSE, fig.width = 6.5, fig.cap = 'Global and regional trends in perceived data quality. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.'}
-
-ggsave('figures/trends_quality.png')
-```
-
-
-```{r fig.height = 8, fig.width = 6.5}
-q1 <- trend_dat[1, ] %>%
-  mutate(trends = map(trends, 
-                      ~mutate(., cluster = recode_factor(cluster, 
-                                 `2` = '1', `6` = '2',`4` = '3', 
-                                 `1` = '4', `5` = '5', `3` = '6')))) %>%
-  plot_trends('Expertise', color_theme = 'RdYlBu')
-
-q2 <- trend_dat[1,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
-    labs(title = 'B', x = 'Thousand years BP', y = 'Expertise') +
-    theme_bw()
-
-q3 <- trend_dat[2,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('Unknown', 'Good'), limits = c(0,1)) +
-    labs(title = 'C', x = 'Thousand years BP', y = 'Data Quality') +
-    theme_bw()
-
-q4 <- trend_dat[2, ] %>%
+```{r, echo = FALSE, fig.width = 6.5}
+trend_dat[2, ] %>%
   mutate(trends = map(trends, ~mutate(., 
                                   cluster = recode_factor(cluster, 
-                                 `6` = '1', `4` = '2',`2` = '3', 
-                                 `1` = '4', `3` = '5', `5` = '6')))) %>%
-  plot_trends('Data Quality', color_theme = 'RdYlBu')
+                                 `3` = '1', `2` = '2',`6` = '3', 
+                                 `1` = '4', `5` = '5', `4` = '6')))) %>%
+  plot_trends('Data Quality', color_theme = 'RdYlBu', title = 'Archaeological trends') + 
+  scale_y_continuous(breaks = c(0, 1), labels = c('Unknown', 'Good')) +
+  labs( x = 'Thousand years BP', y = 'Quality')
 
-q1 / (q2 | q3) /  q4 +plot_layout(heights = c(2,1,2))
-
+ggsave('figures/trends_quality.png', height = 8, width = 12)
 ```
+
+```{r, echo = FALSE, fig.width = 6.5}
+trend_dat[1, ] %>%
+  mutate(trends = map(trends, 
+                      ~mutate(., cluster = recode_factor(cluster, 
+                                 `1` = '1', `2` = '2',`3` = '3', 
+                                 `5` = '4', `4` = '5', `6` = '6')))) %>%
+  plot_trends('Expertise', color_theme = 'RdYlBu', title = 'Archaeological trends') + 
+  scale_y_continuous(breaks = c(0,1), labels = c('None', 'High')) +
+  labs(x = 'Thousand years BP', y = 'Expertise')
+
+ggsave('figures/trends_exp.png', height = 8, width = 12)
+```
+
 
