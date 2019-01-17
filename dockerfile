@@ -21,4 +21,4 @@ RUN . /etc/environment \
   && R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
 
  # render the manuscript into a html output
-  && R -e "rmarkdown::render('/archaeoglobe/archaeoglobe.Rmd')"
+  && R -e "rmarkdown::render('/archaeoglobe/analysis/archaeoglobe.Rmd')"
