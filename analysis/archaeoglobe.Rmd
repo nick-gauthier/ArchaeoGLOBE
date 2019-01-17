@@ -161,9 +161,31 @@ response_levels <- tribble(
 Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single step, and save all the outputs in a tibble format for easy plotting. If you're running this for the first time, it should take about 40 minutes to run on a Intel NUC with a 5th-gen Intel Core i7-5557U processor and 16gb of RAM running Linux.
 
 ```{r echo = FALSE}
-# if there is a saved object on disk containing the model output, don't run the next chunk of code
-# a simple-person's caching :) 
-rerun_timeconsuming_analysis <- ifelse(file.exists("data/derived-data/trend_dat.Rda"), FALSE, TRUE)
+# A simple type of caching...
+# Do we want to run the modelling code, or
+# load a previously saved result from disk, or
+# download a previously saved result from a repository?
+# default is not run, then check if there is a saved file, and use that, or download
+
+rerun_timeconsuming_analysis <- FALSE # FALSE for do not run the modelling code
+
+if(rerun_timeconsuming_analysis) {
+  # go to the next chunk of code
+} else {
+  # download the previously saved result
+  if(file.exists('data/derived-data/trend_dat.rda')) {
+    # the file exists on the local disk, so just read it in
+    message("Loading previously saved model results from disk...")
+    trend_dat <- readRDS('data/derived-data/trend_dat.rda')
+  } else {
+  # we don't want to run the modelling code, and the result don't exist locally,
+  # so download
+  message("Downloading previously saved model results, takes 2-3 min...")
+  library(osfr)
+  trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
+  message("Done.")
+  } 
+}
 ```
 
 ```{r, eval = rerun_timeconsuming_analysis}
@@ -173,18 +195,8 @@ trend_dat <- response_levels %>%
          mod = map2(data, n_cats, fit_gam),
          trends = map(mod, extract_trends))
 
+# save to disk
 saveRDS(trend_dat, file = "data/derived-data/trend_dat.rda")
-```
-
-```{r echo = FALSE}
-# if trend_dat is already in the workspace, use it, if not, read it in from disk
-# a simple-person's caching :)
-
-if(exists('trend_dat')){
-  trend_dat <- trend_dat 
- }else{ 
-  trend_dat <- readRDS("data/derived-data/trend_dat.rda")
-    }
 ```
 
 # Results
