@@ -172,7 +172,7 @@ rerun_timeconsuming_analysis <- FALSE # FALSE for do not run the modelling code
 if(rerun_timeconsuming_analysis) {
   # go to the next chunk of code
 } else {
-  # download the previously saved result
+  # check if there is a local file and if so, load it
   if(file.exists('data/derived-data/trend_dat.rda')) {
     # the file exists on the local disk, so just read it in
     message("Loading previously saved model results from disk...")
