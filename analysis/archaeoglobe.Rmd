@@ -290,7 +290,7 @@ g6 <- trend_dat[2,]$mod[[1]] %>%
     theme_bw()
 
 png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
-(g1 + g2) / (g3 + g4) / (g5 + g6)
+{(g1 + g2) / (g3 + g4) / (g5 + g6)}
 dev.off()
 ```
 
