@@ -30,6 +30,7 @@ Import packages needed for analysis. We'll use packages from the `tidyverse`, su
 library(tidyverse)
 library(mgcv)
 library(sf)
+library(ggplot2)
 
 #install patchwork from github 
 #devtools::install_github('thomasp85/patchwork')
