@@ -210,12 +210,14 @@ message("Done.")
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
 ```{r, echo = FALSE}
-g1 <- trend_dat[3,]$mod[[1]] %>%
+g1data <- trend_dat[3,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
+    .[[1]]
+
+g1 <- ggplot(g1data,
+           aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
@@ -223,12 +225,15 @@ g1 <- trend_dat[3,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
     theme_bw()
-g2 <- trend_dat[6,]$mod[[1]] %>%
+    
+g2data <- trend_dat[6,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
+    .[[1]] 
+
+g2 <- ggplot(g2data,
+           aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
@@ -236,12 +241,15 @@ g2 <- trend_dat[6,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'B', x = 'Thousand years BP', y = 'Pastoralism') +
     theme_bw()
-g3 <- trend_dat[4,]$mod[[1]] %>%
+    
+g3data <- trend_dat[4,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
+    .[[1]] 
+
+g3 <- ggplot(g3data,
+           aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
@@ -249,12 +257,15 @@ g3 <- trend_dat[4,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'C', x = 'Thousand years BP', y = 'Extensive \nAgriculture') +
     theme_bw()
-g4 <- trend_dat[5,]$mod[[1]] %>%
+    
+g4data <- trend_dat[5,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
+    .[[1]] 
+
+g4 <- ggplot(g4data,
+           aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
@@ -262,12 +273,15 @@ g4 <- trend_dat[5,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'D', x = 'Thousand years BP', y = 'Intensive \nAgriculture') +
     theme_bw()
-g5 <- trend_dat[1,]$mod[[1]] %>%
+    
+g5data <- trend_dat[1,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
+    .[[1]] 
+
+g5 <- ggplot(g5data,
+           aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
@@ -275,12 +289,15 @@ g5 <- trend_dat[1,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
     labs(title = 'E', x = 'Thousand years BP', y = 'Expertise') +
     theme_bw()
-g6 <- trend_dat[2,]$mod[[1]] %>%
+    
+g6data <- trend_dat[2,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] %>%
-    ggplot(aes(time / 1000, plogis(fit)))+
+    .[[1]]
+
+g6 <- ggplot(g6data,
+           aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
@@ -288,9 +305,11 @@ g6 <- trend_dat[2,]$mod[[1]] %>%
     scale_y_continuous(breaks = c(0,1), labels = c('Unknown', 'Good'), limits = c(0,1)) +
     labs(title = 'F', x = 'Thousand years BP', y = 'Data Quality') +
     theme_bw()
+```
 
+```{r echo=FALSE}
 png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
-{(g1 + g2) / (g3 + g4) / (g5 + g6)}
+(g1 + g2) / (g3 + g4) / (g5 + g6)
 dev.off()
 ```
 
@@ -323,7 +342,7 @@ plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional lan
     labs(title = title, subtitle = variable, x = '', y='') +
     scale_fill_brewer(palette = color_theme, guide = 'none') +  
     theme_minimal()
-  
+
   # the patchwork command that prints the multipanel plots
   p2/p1 + plot_layout(heights = c(5,1), widths = c(4,1))
 }
