@@ -254,7 +254,7 @@ trend_dat %>%
 }
 ```
 
-```{r, echo = FALSE}
+```{r, echo = FALSE,  eval=FALSE}
 
 g1data_fn_enquo <- get_g_data1("HUNT")
 
