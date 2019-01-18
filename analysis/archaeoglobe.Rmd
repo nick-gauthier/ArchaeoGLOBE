@@ -167,9 +167,12 @@ Now map each of the above functions to each variable. This allows us to run the 
 # download a previously saved result from a repository?
 # default is not run, then check if there is a saved file, and use that, or download
 
+library(osfr)
+
 rerun_timeconsuming_analysis <- FALSE # FALSE for do not run the modelling code
 
 if(rerun_timeconsuming_analysis) {
+  message("running the modelling code, this may take 30-50 min...")
   # go to the next chunk of code
 } else {
   # check if there is a local file and if so, load it
@@ -181,7 +184,6 @@ if(rerun_timeconsuming_analysis) {
   # we don't want to run the modelling code, and the result don't exist locally,
   # so download
   message("Downloading previously saved model results, takes 2-3 min...")
-  library(osfr)
   trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
   message("Done.")
   } 
@@ -197,6 +199,7 @@ trend_dat <- response_levels %>%
 
 # save to disk
 saveRDS(trend_dat, file = "data/derived-data/trend_dat.rda")
+message("Done.")
 ```
 
 # Results

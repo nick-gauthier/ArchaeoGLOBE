@@ -23,7 +23,7 @@ Please cite this compendium using the archival URL (and not a GitHub URL):
 > Authors, (2018). *Compendium of R code and data for ‘Title of paper’*.
 > Accessed 15 Nov 2018. Online at <https://doi.org/xxx/xxx>
 
-### How to view, run, download or install
+### How to view, run, download
 
 You can view the results of the analysis online here: <https://benmarwick.github.io/ArchaeoGLOBE/archaeoglobe.html>
 
@@ -32,13 +32,6 @@ You can run the code in your browser (no download or install required) by [launc
 You can download the compendium as a zip from from this URL:
 <https://github.com/benmarwick/ArchaeoGLOBE/archive/master.zip>
 
-Or you can install this compendium on your computer as an R package, archaeoglobe, from
-GitHub with:
-
-``` r
-# install.packages("devtools")
-devtools::install_github("benmarwick/ArchaeoGLOBE")
-```
 
 ### Licenses
 
