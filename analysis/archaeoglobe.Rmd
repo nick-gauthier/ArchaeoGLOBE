@@ -244,7 +244,7 @@ trend_dat %>%
   select(mod) %>% 
   pull() %>% 
   .[[1]] %>% 
-  plot.gam(select = 0) %>% 
+  plot.gam(., select = 0) %>% 
   .[1] %>%
   map(~tibble(time = .$x, 
               fit = c(.$fit), 
@@ -260,7 +260,7 @@ g1data_fn_enquo <- get_g_data1("HUNT")
 
 ```
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, eval = FALSE}
 g1data_fn_orig <- get_g_data(3)
 ```
 
