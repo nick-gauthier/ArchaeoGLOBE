@@ -220,7 +220,9 @@ get_g_data <- function(row_n){
     .[[1]] 
   
 }
+```
 
+```{r, echo = FALSE}
 gdata_3 <- get_g_data(3)
 
 g1data <- trend_dat[3,]$mod[[1]] %>%
@@ -228,6 +230,9 @@ g1data <- trend_dat[3,]$mod[[1]] %>%
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
+```
+
+```{r, echo = FALSE}
 
 get_g_data1 <- function(prefix){
   
@@ -246,10 +251,19 @@ trend_dat %>%
     .[[1]] 
   
 }
+```
+
+```{r, echo = FALSE}
 
 g1data_fn_enquo <- get_g_data1("HUNT")
-g1data_fn_orig <- get_g_data(3)
 
+```
+
+```{r, echo = FALSE}
+g1data_fn_orig <- get_g_data(3)
+```
+
+```{r, echo = FALSE}
 g1 <- ggplot(g1data_fn_orig,
            aes(time / 1000, plogis(fit)))+
     geom_line() +
