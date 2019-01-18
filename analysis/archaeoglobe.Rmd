@@ -211,7 +211,7 @@ First we plot out the global trends for each land use type. Please refer to the 
 
 ```{r, echo = FALSE}
 g1data <- trend_dat[3,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
+    plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]]
@@ -229,7 +229,7 @@ g1 <- ggplot(g1data,
     
 ```{r, echo = FALSE}
 g2data <- trend_dat[6,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
+    plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
@@ -247,7 +247,7 @@ g2 <- ggplot(g2data,
 
 ```{r, echo = FALSE}
 g3data <- trend_dat[4,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
+    plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
@@ -266,7 +266,7 @@ g3 <- ggplot(g3data,
 ```{r, echo = FALSE}
     
 g4data <- trend_dat[5,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
+    plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
@@ -284,7 +284,7 @@ g4 <- ggplot(g4data,
 
 ```{r, echo = FALSE}
 g5data <- trend_dat[1,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
+    plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
@@ -302,7 +302,7 @@ g5 <- ggplot(g5data,
 
 ```{r, echo = FALSE}
 g6data <- trend_dat[2,]$mod[[1]] %>%
-    plot(select = 0) %>% # selects the global trend
+    plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]]
