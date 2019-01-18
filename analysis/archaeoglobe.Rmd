@@ -222,7 +222,8 @@ get_g_data <- function(row_n){
 }
 ```
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, eval = FALSE}
+# this is a problem on circle-ci
 gdata_3 <- get_g_data(3)
 
 g1data <- trend_dat[3,]$mod[[1]] %>%
