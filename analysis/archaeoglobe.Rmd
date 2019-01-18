@@ -225,7 +225,9 @@ g1 <- ggplot(g1data,
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
     theme_bw()
+```
     
+```{r, echo = FALSE}
 g2data <- trend_dat[6,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
@@ -241,7 +243,9 @@ g2 <- ggplot(g2data,
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'B', x = 'Thousand years BP', y = 'Pastoralism') +
     theme_bw()
-    
+```
+
+```{r, echo = FALSE}
 g3data <- trend_dat[4,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
@@ -257,6 +261,9 @@ g3 <- ggplot(g3data,
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'C', x = 'Thousand years BP', y = 'Extensive \nAgriculture') +
     theme_bw()
+```
+
+```{r, echo = FALSE}
     
 g4data <- trend_dat[5,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
@@ -273,7 +280,9 @@ g4 <- ggplot(g4data,
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'D', x = 'Thousand years BP', y = 'Intensive \nAgriculture') +
     theme_bw()
-    
+```
+
+```{r, echo = FALSE}
 g5data <- trend_dat[1,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
@@ -289,7 +298,9 @@ g5 <- ggplot(g5data,
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
     labs(title = 'E', x = 'Thousand years BP', y = 'Expertise') +
     theme_bw()
-    
+```
+
+```{r, echo = FALSE}
 g6data <- trend_dat[2,]$mod[[1]] %>%
     plot(select = 0) %>% # selects the global trend
     .[1] %>%
@@ -307,7 +318,6 @@ g6 <- ggplot(g6data,
     theme_bw()
 ```
 
-
 ```{r gridxtra, echo=FALSE}
 library(gridExtra)
 png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
@@ -315,13 +325,11 @@ grid.arrange(grobs = list(g1, g2, g3, g4, g5 ,g6), ncol = 2, nrow = 3)
 dev.off()
 ```
 
-
 ```{r eval=FALSE, echo=FALSE}
 png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
 (g1 + g2) / (g3 + g4) / (g5 + g6)
 dev.off()
 ```
-
 
 ```{r, echo = FALSE}
 plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional land-use trends'){
