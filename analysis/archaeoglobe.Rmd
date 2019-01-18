@@ -210,11 +210,16 @@ message("Done.")
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
 ```{r, echo = FALSE}
-g1data <- trend_dat[3,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]]
+g1data <- 
+trend_dat %>% 
+  filter(prefix == "HUNT") %>% 
+  select(mod) %>% 
+  pull() %>% 
+  .[[1]] %>% 
+  plot.gam(select = 0)
+
+g1data <- 
+  map(g1data, ~ tibble(time = .$x, fit = .$fit, se = .$se))[[1]]
 
 g1 <- ggplot(g1data,
            aes(time / 1000, plogis(fit)))+
