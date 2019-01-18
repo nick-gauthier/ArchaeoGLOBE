@@ -307,7 +307,16 @@ g6 <- ggplot(g6data,
     theme_bw()
 ```
 
-```{r echo=FALSE}
+
+```{r gridxtra, echo=FALSE}
+library(gridExtra)
+png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
+grid.arrange(grobs = list(g1, g2, g3, g4, g5 ,g6), ncol = 2, nrow = 3)
+dev.off()
+```
+
+
+```{r eval=FALSE, echo=FALSE}
 png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
 (g1 + g2) / (g3 + g4) / (g5 + g6)
 dev.off()
