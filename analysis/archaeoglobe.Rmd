@@ -215,12 +215,16 @@ First we plot out the global trends for each land use type. Please refer to the 
 get_g_prefix <- function(prefix){
   
   row_n <- enquo(prefix)
+
+  df1 <- 
+    trend_dat %>% 
+  filter(prefix == !!prefix) 
   
-trend_dat %>% 
-  filter(prefix == !!prefix) %>% 
-  select(5) %>%  # col 5 is mod
-  pull() %>% 
-  .[[1]]
+  df2 <- df1$mod
+  df3 <- df2[[1]]
+  
+  df3
+
 }
 ```
 
