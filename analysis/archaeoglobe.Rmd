@@ -209,32 +209,10 @@ message("Done.")
 
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
-```{r, echo = FALSE}
-
-get_g_data <- function(row_n){
-  
-  trend_dat[row_n,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-}
-```
-
-```{r, echo = FALSE, eval = FALSE}
-# this is a problem on circle-ci
-gdata_3 <- get_g_data(3)
-
-g1data <- trend_dat[3,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-```
 
 ```{r, echo = FALSE}
 
-get_g_data1 <- function(prefix){
+get_g_prefix <- function(prefix){
   
   row_n <- enquo(prefix)
   
@@ -242,29 +220,39 @@ trend_dat %>%
   filter(prefix == !!prefix) %>% 
   select(mod) %>% 
   pull() %>% 
-  .[[1]] %>% 
-  plot.gam(., select = 0) %>% 
+  .[[1]]
+}
+```
+
+```{r, echo = FALSE}
+plot_gam <- function(i)  plot.gam(i, select = 0) 
+```
+
+```{r echo=FALSE}
+get_fit <- function(i) {
+  i %>% 
   .[1] %>%
   map(~tibble(time = .$x, 
               fit = c(.$fit), 
               se = .$se)) %>%
     .[[1]] 
-  
 }
 ```
 
-```{r, echo = FALSE,  eval=FALSE}
-
-g1data_fn_enquo <- get_g_data1("HUNT")
-
+```{r}
+get_g_data1 <- get_g_prefix("HUNT")
 ```
 
-```{r, echo = FALSE, eval = T}
-g1data_fn_orig <- get_g_data(3)
+```{r}
+plot_gam_out <- plot_gam(get_g_data1)
+```
+
+```{r}
+g1data <- get_fit(plot_gam_out)
 ```
 
 ```{r, echo = FALSE}
-g1 <- ggplot(g1data_fn_orig,
+g1 <- ggplot(g1data,
            aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
@@ -274,7 +262,7 @@ g1 <- ggplot(g1data_fn_orig,
     labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
     theme_bw()
 
-g1a <- ggplot(g1data_fn_enquo,
+g1a <- ggplot(g1data,
            aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
