@@ -259,7 +259,7 @@ g1data_fn_enquo <- get_g_data1("HUNT")
 
 ```
 
-```{r, echo = FALSE, eval = FALSE}
+```{r, echo = FALSE, eval = T}
 g1data_fn_orig <- get_g_data(3)
 ```
 
