@@ -14,5 +14,6 @@ Imports:
     mgcv,
     sf,
     tidyverse,
-    patchwork
+    patchwork,
+    mgcViz
 RoxygenNote: 6.1.1
