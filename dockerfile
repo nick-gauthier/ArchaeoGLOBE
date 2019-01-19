@@ -12,7 +12,7 @@ RUN . /etc/environment \
   # Install linux depedendencies here
   # e.g. need this for ggforce::geom_sina
   && sudo apt-get update \
-  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev -y \
+  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj -bin libgeos-dev xorg libx11-dev libglu1-mesa-dev libfreetype6-dev -y \
   
   # install GitHub-only depedendencies
   && R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
@@ -22,3 +22,6 @@ RUN . /etc/environment \
 
  # render the manuscript into a html output
   && R -e "rmarkdown::render('/archaeoglobe/analysis/archaeoglobe.Rmd')"
+  
+  
+
