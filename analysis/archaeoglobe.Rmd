@@ -210,6 +210,9 @@ message("Done.")
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
 
+
+
+
 ```{r, echo = FALSE}
 
 get_g_prefix <- function(prefix){
@@ -228,41 +231,6 @@ get_g_prefix <- function(prefix){
 }
 ```
 
-```{r, echo = FALSE}
-plot_gam <- function(i)
-  mgcv::plot.gam(
-  i,
-  select = 0,
-  se = TRUE,
-  rug = FALSE,
-  residuals = TRUE,
-  pages = 0,
-  scale = -1,
-  n = 100,
-  n2 = 40,
-  n3 = 3,
-  pers = FALSE,
-  theta = 30,
-  phi = 30,
-  jit = FALSE,
-  xlab = NULL,
-  ylab = NULL,
-  main = NULL,
-  ylim = NULL,
-  xlim = NULL,
-  too.far = 0.1,
-  all.terms = FALSE,
-  shade = FALSE,
-  shade.col = "gray80",
-  shift = 0,
-  trans = I,
-  seWithMean = FALSE,
-  unconditional = FALSE,
-  by.resids = FALSE,
-  scheme = 0
-  )
-```
-
 ```{r echo=FALSE}
 get_fit <- function(i) {
   i %>% 
@@ -279,13 +247,13 @@ get_g_data1 <- get_g_prefix("HUNT")
 ```
 
 ```{r}
-get_g_data1$Vp[1,1] <- 1
-plot_gam_out <- plot_gam(get_g_data1)
+plot_gam_out <- invisible(mgcv::plot.gam(x = get_g_data1, select = 0))
 ```
 
 ```{r}
 g1data <- get_fit(plot_gam_out)
 ```
+
 
 ```{r, echo = FALSE}
 g1 <- ggplot(g1data,
@@ -311,7 +279,7 @@ g1a <- ggplot(g1data,
     
 ```{r, echo = FALSE}
 g2data <- trend_dat[6,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
+    mgcv::plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
