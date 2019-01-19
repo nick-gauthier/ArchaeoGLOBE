@@ -218,7 +218,6 @@ get_g_data <- function(row_n){
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
-  
 }
 ```
 
