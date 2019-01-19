@@ -229,10 +229,38 @@ get_g_prefix <- function(prefix){
 ```
 
 ```{r, echo = FALSE}
-plot_gam <- function(i) mgcv::plot.gam(i,
-                                       select = 0, 
-                                       se = TRUE,
-                                       rug = FALSE)
+plot_gam <- function(i)
+  mgcv::plot.gam(
+  i,
+  select = 0,
+  se = TRUE,
+  rug = FALSE,
+  residuals = TRUE,
+  pages = 0,
+  scale = -1,
+  n = 100,
+  n2 = 40,
+  n3 = 3,
+  pers = FALSE,
+  theta = 30,
+  phi = 30,
+  jit = FALSE,
+  xlab = NULL,
+  ylab = NULL,
+  main = NULL,
+  ylim = NULL,
+  xlim = NULL,
+  too.far = 0.1,
+  all.terms = FALSE,
+  shade = FALSE,
+  shade.col = "gray80",
+  shift = 0,
+  trans = I,
+  seWithMean = FALSE,
+  unconditional = FALSE,
+  by.resids = FALSE,
+  scheme = 0
+  )
 ```
 
 ```{r echo=FALSE}
