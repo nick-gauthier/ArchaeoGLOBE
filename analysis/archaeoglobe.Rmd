@@ -229,7 +229,7 @@ get_g_prefix <- function(prefix){
 ```
 
 ```{r, echo = FALSE}
-plot_gam <- function(i)  plot.gam(i, select = 0) 
+plot_gam <- function(i)  mgcv::plot.gam(i, select = 0) 
 ```
 
 ```{r echo=FALSE}
