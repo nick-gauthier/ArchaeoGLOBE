@@ -279,6 +279,7 @@ get_g_data1 <- get_g_prefix("HUNT")
 ```
 
 ```{r}
+get_g_data1$Vp[1,1] <- 1
 plot_gam_out <- plot_gam(get_g_data1)
 ```
 
