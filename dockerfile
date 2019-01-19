@@ -12,6 +12,7 @@ RUN . /etc/environment \
   # Install linux depedendencies here
   # e.g. need this for ggforce::geom_sina
   && sudo apt-get update \
+  && ENV DEBIAN_FRONTEND noninteractive \
   && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xorg libx11-dev libglu1-mesa-dev libfreetype6-dev -y \
   
   # install GitHub-only depedendencies

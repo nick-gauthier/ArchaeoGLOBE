@@ -250,14 +250,14 @@ b <- getViz(get_g_data1)
 ```
 
 ```{r}
-o <- plot( sm(b, 1) )
+o <- plot(b, select = 1)
 ```
 
 
 ```{r}
-g1 <-   o + 
-  l_fitLine(colour = "black") + 
-  l_ciLine(mul = 2, colour = "black", linetype = 2) + 
+g1a <-   o + 
+   l_fitLine() +
+   l_ciLine(mul = 2) +
   scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)*1000,
                      labels = -c(-10, -8,-6,-4,-2,0)) +
   scale_y_continuous(breaks = c(-2,2), 
@@ -269,15 +269,8 @@ g1 <-   o +
 
 
 ```{r}
-g1
+g1a
 ```
-
-
-
-
-
-
-
 
 
 
