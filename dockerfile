@@ -13,7 +13,7 @@ RUN . /etc/environment \
   # Install linux depedendencies here
   # e.g. need this for ggforce::geom_sina
   && sudo apt-get update \
-  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xorg -y \
+  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev -y \
   
   # install GitHub-only depedendencies
   && R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
