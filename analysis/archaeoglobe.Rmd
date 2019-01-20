@@ -245,7 +245,7 @@ get_g_data1 <- get_g_prefix("HUNT")
 
 ```{r}
 library(mgcViz)
-
+class(get_g_data1) <- "gam"
 b <- getViz(get_g_data1)
 ```
 
