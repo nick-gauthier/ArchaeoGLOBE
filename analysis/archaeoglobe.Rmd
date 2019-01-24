@@ -245,7 +245,6 @@ get_g_data1 <- get_g_prefix("HUNT")
 
 ```{r}
 library(mgcViz)
-class(get_g_data1) <- "gam"
 b <- getViz(get_g_data1)
 ```
 
@@ -403,10 +402,11 @@ grid.arrange(grobs = list(g1, g2, g3, g4, g5 ,g6), ncol = 2, nrow = 3)
 dev.off()
 ```
 
-```{r eval=FALSE, echo=FALSE}
+```{r echo=FALSE}
 png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
 (g1 + g2) / (g3 + g4) / (g5 + g6)
 dev.off()
+knitr::include_graphics("figures/global_trends.png")
 ```
 
 ```{r, echo = FALSE}
