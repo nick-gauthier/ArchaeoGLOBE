@@ -211,78 +211,12 @@ First we plot out the global trends for each land use type. Please refer to the 
 
 
 ```{r, echo = FALSE}
-
-get_g_prefix <- function(prefix){
-  
-  row_n <- enquo(prefix)
-
-  df1 <- 
-    trend_dat %>% 
-  filter(prefix == !!prefix) 
-  
-  df2 <- df1$mod
-  df3 <- df2[[1]]
-  
-  df3
-
-}
-```
-
-```{r echo=FALSE}
-get_fit <- function(i) {
-  i %>% 
-  .[1] %>%
-  map(~tibble(time = .$x, 
-              fit = c(.$fit), 
-              se = .$se)) %>%
+g1data <- trend_dat[3,]$mod[[1]] %>%
+    mgcv::plot.gam(select = 0) %>% # selects the global trend
+    .[1] %>%
+    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
-}
-```
-
-```{r}
-get_g_data1 <- get_g_prefix("HUNT")
-```
-
-```{r}
-library(mgcViz)
-b <- getViz(get_g_data1)
-```
-
-```{r}
-o <- plot(b, select = 1)
-```
-
-
-```{r}
-g1a <-   o + 
-   l_fitLine() +
-   l_ciLine(mul = 2) +
-  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)*1000,
-                     labels = -c(-10, -8,-6,-4,-2,0)) +
-  scale_y_continuous(breaks = c(-2,2), 
-                     labels = c('None', 'Widespread'), 
-                     limits = c(-2,2)) +
-  labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
-  theme_bw()
-```
-
-
-```{r}
-g1a
-```
-
-
-
-```{r}
-plot_gam_out <- invisible(mgcv::plot.gam(x = get_g_data1, select = 0))
-```
-
-```{r}
-g1data <- get_fit(plot_gam_out)
-```
-
-
-```{r, echo = FALSE}
+    
 g1 <- ggplot(g1data,
            aes(time / 1000, plogis(fit)))+
     geom_line() +
