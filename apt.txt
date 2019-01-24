@@ -5,3 +5,7 @@ libproj-dev
 proj-data 
 proj-bin 
 libgeos-dev
+xorg-dev
+libcgal-dev
+libglu1-mesa-dev
+libx11-dev
