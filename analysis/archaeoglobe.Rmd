@@ -209,6 +209,10 @@ message("Done.")
 
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
+```{r, check1, echo = FALSE}
+trend_dat
+```
+
 
 ```{r, echo = FALSE}
 g1data <- trend_dat[3,]$mod[[1]] %>%
