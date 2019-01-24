@@ -211,18 +211,39 @@ message("Done.")
 
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
 
-```{r, check1, echo = FALSE}
-trend_dat
+```{r, mod, echo = FALSE}
+g1data1 <- 
+  trend_dat[3,]$mod[[1]] 
+```
+
+```{r plotgam, echo = FALSE }
+g1data2 <- 
+g1data1 %>%
+    mgcv::plot.gam(select = 0) 
 ```
 
 
-```{r, echo = FALSE}
-g1data <- trend_dat[3,]$mod[[1]] %>%
-    mgcv::plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
+```{r gt, echo = FALSE }
+# selects the global trend
+g1data3 <- 
+g1data2 %>%
+    .[1]
+
+```
+
+
+```{r maptibble, echo = FALSE}
+g1data4 <- 
+  g1data3 %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
     .[[1]] 
-    
+```
+
+```{r, echo = FALS}
+g1data <- g1data4
+```
+ 
+ ```{r echo = FALSE}
 g1 <- ggplot(g1data,
            aes(time / 1000, plogis(fit)))+
     geom_line() +
