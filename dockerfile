@@ -16,13 +16,13 @@ RUN . /etc/environment \
   && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xvfb xorg-dev  mesa-common-dev libglu1-mesa-dev freeglut3-dev  xorg-dev libcgal-dev libx11-dev libftgl2 -y \
   
   # install GitHub-only depedendencies
-  && R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
+  && sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
 
   # build this compendium package
-  && R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
+  && sudo R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
 
  # render the manuscript into a html output
-  && R -e "setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
+  && sudo R -e "setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
   
   
 
