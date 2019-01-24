@@ -20,6 +20,9 @@ RUN . /etc/environment \
 
   # build this compendium package
   && sudo R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
+  
+  # make project directory writable to save images and other output
+  && sudo chmod a+rwx -R archaeoglobe/ \
 
  # render the manuscript into a html output
   && sudo R -e "setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
