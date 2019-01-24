@@ -186,6 +186,8 @@ if(rerun_timeconsuming_analysis) {
   # so download
   message("Downloading previously saved model results, takes 2-3 min...")
   trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
+  message("Loading the data downloaded from osf.io...")
+  trend_dat <- readRDS('data/derived-data/trend_dat.rda')
   message("Done.")
   } 
 }
