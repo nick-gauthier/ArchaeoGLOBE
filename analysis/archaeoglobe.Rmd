@@ -239,7 +239,7 @@ g1data4 <-
     .[[1]] 
 ```
 
-```{r, echo = FALS}
+```{r, echo = FALSE}
 g1data <- g1data4
 ```
  
