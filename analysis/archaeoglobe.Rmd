@@ -210,56 +210,20 @@ message("Done.")
 ## Global Trends
 
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
-
-```{r, mod, echo = FALSE}
-g1data1 <- 
-  trend_dat[3,]$mod[[1]] 
-```
-
-```{r plotgam, echo = FALSE }
-g1data2 <- 
-g1data1 %>%
-    mgcv::plot.gam(select = 0) 
-```
-
-
-```{r gt, echo = FALSE }
-# selects the global trend
-g1data3 <- 
-g1data2 %>%
-    .[1]
-
-```
-
-
-```{r maptibble, echo = FALSE}
-g1data4 <- 
-  g1data3 %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-```
-
-```{r, echo = FALSE}
-g1data <- g1data4
-```
  
  ```{r echo = FALSE}
+ g1data <- trend_dat[3,]$mod[[1]] %>%
+    mgcv::plot.gam(select = 0) %>% # selects the global trend
+    .[1] %>%
+    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
+    .[[1]] 
+    
 g1 <- ggplot(g1data,
            aes(time / 1000, plogis(fit)))+
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
     scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
-    theme_bw()
-
-g1a <- ggplot(g1data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
     labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
     theme_bw()
