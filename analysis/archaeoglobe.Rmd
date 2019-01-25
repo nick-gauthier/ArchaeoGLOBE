@@ -49,8 +49,10 @@ library("dataverse")
 Sys.setenv("DATAVERSE_SERVER" = "dataverse.harvard.edu")
 
 # get data frame of files on dataverse
-ArchaeoGLOBE_Public_Data_DOI <- "doi:10.7910/DVN/CNCANQ"
-ArchaeoGLOBE_Public_Data_df <- get_dataset(ArchaeoGLOBE_Public_Data_DOI)
+ArchaeoGLOBE_Public_Data_DOI <- 
+  "doi:10.7910/DVN/CNCANQ"
+ArchaeoGLOBE_Public_Data_df <- 
+  get_dataset(ArchaeoGLOBE_Public_Data_DOI)
 
 # Only download the file we need here
 ArchaeoGLOBE_Public_Data_df_files <- 
@@ -68,7 +70,8 @@ archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
 
 ```{r dataverse-shapefile, echo=T}
 # repeat for shapefile
-ArchaeoGLOBE_Regions_DOI <-  "doi:10.7910/DVN/CQWUBI"
+ArchaeoGLOBE_Regions_DOI <-  
+  "doi:10.7910/DVN/CQWUBI"
 
 # get data frame of files on DV
 ArchaeoGLOBE_Regions_df <- 
@@ -250,9 +253,13 @@ trend_dat <- response_levels %>%
          trends = map(mod, extract_trends))
 
 # save to disk
-saveRDS(trend_dat, file = "data/derived-data/trend_dat.rda")
+saveRDS(trend_dat, 
+        file = "data/derived-data/trend_dat.rda")
+
 # and upload to osf.io
-osf_retrieve_file("kcr2e") %>% osf_upload("data/derived-data/trend_dat.rda", overwrite = TRUE)
+osf_retrieve_file("kcr2e") %>% 
+  osf_upload("data/derived-data/trend_dat.rda", 
+             overwrite = TRUE)
 
 # write a note to indicate the provenance of this file
 this_commit <-  git2r::revparse_single(git2r::repository('.'), "HEAD")
