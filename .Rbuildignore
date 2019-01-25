@@ -1,0 +1,9 @@
+^appveyor\.yml$
+^LICENSE\.md$
+^\.travis\.yml$
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^README-.*\.png$
+^CONDUCT\.md$
+^CONTRIBUTING\.md$

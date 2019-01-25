@@ -1,0 +1,1 @@
+trend_dat generated on 2019-01-24 from archaeoglobe.Rmd at git commit 0a30dd03fb831b86b4594abe5291f9c8c1b71aac made by Ben Marwick on 2019-01-24 12:50:57 with the message 'Merge branch 'master' of https://github.com/benmarwick/ArchaeoGLOBE'
