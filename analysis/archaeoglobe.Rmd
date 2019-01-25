@@ -301,13 +301,14 @@ First we plot out the global trends for each land use type. Please refer to the 
     .[[1]] 
     
 g1 <- ggplot(g1data,
-           aes(time / 1000, plogis(fit)))+
+           aes(time / 1000, plogis(fit))) +
     geom_line() +
     geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
     scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'A', x = 'Thousand years BP', y = 'Hunting') +
+    labs(title = 'A', x = 'Thousand years BP', y = 'Hunting')  +
+    theme_bw()
 
 g2data <- trend_dat[6,]$mod[[1]] %>%
     mgcv::plot.gam(select = 0) %>% # selects the global trend
