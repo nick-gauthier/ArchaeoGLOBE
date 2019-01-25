@@ -15,11 +15,16 @@ cache:
 
 # Adapt as necessary starting from here
 
+environment:
+  global:
+    USE_RTOOLS: true
+
 build_script:
   - travis-tool.sh install_deps
 
 test_script:
   - travis-tool.sh run_tests
+  - R -e setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
 
 on_failure:
   - 7z a failure.zip *.Rcheck\*
@@ -43,3 +48,13 @@ artifacts:
 
   - path: '\*_*.zip'
     name: Bits
+<<<<<<< HEAD
+=======
+    
+    
+  - path: '\*_*.tar.gz'
+    name: Bits
+
+  - path: '\*_*.zip'
+    name: Bits
+>>>>>>> ba29aa859b3a8734c38dc3574a4f1232747baf66

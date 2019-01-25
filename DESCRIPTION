@@ -18,8 +18,8 @@ Imports:
     mgcv,
     sf,
     tidyverse,
-    patchwork,
     dataverse,
     git2r, 
     rmapshaper
+Remotes: thomasp85/patchwork, centerforopenscience/osfr
 RoxygenNote: 6.1.1
