@@ -24,7 +24,7 @@ build_script:
 
 test_script:
   - travis-tool.sh run_tests
-  - R -e setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
+  - R -e "setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
 
 on_failure:
   - 7z a failure.zip *.Rcheck\*
