@@ -1,7 +1,6 @@
 # ArchaeoGLOBE Research Compendium
 
-[![Circle CI](https://circleci.com/gh/benmarwick/ArchaeoGLOBE.svg?style=shield&circle-token=:circle-token)](https://circleci.com/gh/benmarwick/ArchaeoGLOBE)  [![AppVeyor build status](https://ci.appveyor.com/api/projects/status/github/benmarwick/ArchaeoGLOBE?branch=master&svg=true)](https://ci.appveyor.com/project/benmarwick/ArchaeoGLOBE) 
- [![Binder](http://mybinder.org/badge.svg)](http://beta.mybinder.org/v2/gh/benmarwick/ArchaeoGLOBE/master?urlpath=rstudio)
+[![Circle CI](https://circleci.com/gh/benmarwick/ArchaeoGLOBE.svg?style=shield&circle-token=:circle-token)](https://circleci.com/gh/benmarwick/ArchaeoGLOBE)  [![Binder](http://mybinder.org/badge.svg)](http://beta.mybinder.org/v2/gh/benmarwick/ArchaeoGLOBE/master?urlpath=rstudio)
 
 
 This repository contains the working files of data and code for our paper:
