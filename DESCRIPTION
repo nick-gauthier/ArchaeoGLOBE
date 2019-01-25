@@ -15,5 +15,7 @@ Imports:
     sf,
     tidyverse,
     patchwork,
-    mgcViz
+    dataverse,
+    git2r, 
+    mapshaper
 RoxygenNote: 6.1.1

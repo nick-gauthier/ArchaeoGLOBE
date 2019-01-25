@@ -12,7 +12,10 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = FALSE)
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE, 
+                      warning = FALSE, 
+                      cache = FALSE)
 ```
 Sample analysis code for the ArchaeoGlobe database. Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
 
@@ -39,11 +42,55 @@ library(patchwork)
 
 ## Data import
 
-Read in the latest version of the ArchaeoGLOBE database and the regions shapefile.
+Read in the latest version of the ArchaeoGLOBE database and the regions' shapefile from the Dataverse repository.
 
-```{r}
-archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.csv')
-regions <- st_read('data/raw-data/Simplified_Regions2.shp', quiet = TRUE)
+```{r dataverse-database, echo=T}
+library("dataverse")
+Sys.setenv("DATAVERSE_SERVER" = "dataverse.harvard.edu")
+
+# get data frame of files on dataverse
+ArchaeoGLOBE_Public_Data_DOI <- "doi:10.7910/DVN/CNCANQ"
+ArchaeoGLOBE_Public_Data_df <- get_dataset(ArchaeoGLOBE_Public_Data_DOI)
+
+# Only download the file we need here
+ArchaeoGLOBE_Public_Data_df_files <- 
+  ArchaeoGLOBE_Public_Data_df$files[grepl("ARCHAEOGLOBE_PUBLIC_DATA", 
+                                          ArchaeoGLOBE_Public_Data_df$files$filename), ]
+
+# read into local dir
+walk(ArchaeoGLOBE_Public_Data_df_files$label,
+    ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
+      writeBin(paste0('data/raw-data/', .x)))
+
+# read into the current environment
+archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
+```
+
+```{r dataverse-shapefile, echo=T}
+# repeat for shapefile
+ArchaeoGLOBE_Regions_DOI <-  "doi:10.7910/DVN/CQWUBI"
+
+# get data frame of files on DV
+ArchaeoGLOBE_Regions_df <- 
+  get_dataset(ArchaeoGLOBE_Regions_DOI) 
+
+# don't get the restricted files
+ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
+
+# read into local dir
+walk(ArchaeoGLOBE_Regions_df_files$label,
+    ~get_file(.x, ArchaeoGLOBE_Regions_DOI) %>% 
+      writeBin(paste0('data/raw-data/', .x)))
+
+unzip('data/raw-data/ArchaeGLOBE_Regions.zip', 
+      overwrite = TRUE,
+      exdir = 'data/raw-data/ArchaeGLOBE_Regions')
+
+# read into the current environment, and simplify the polygons for faster plotting
+regions_unsimplified <- 
+  st_read('data/raw-data/ArchaeGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
+          quiet = TRUE)
+regions <- rmapshaper::ms_simplify(regions_unsimplified)
 ```
 
 ## Exploratory plots
@@ -161,18 +208,19 @@ response_levels <- tribble(
 
 Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single step, and save all the outputs in a tibble format for easy plotting. If you're running this for the first time, it should take about 40 minutes to run on a Intel NUC with a 5th-gen Intel Core i7-5557U processor and 16gb of RAM running Linux.
 
-```{r echo = FALSE}
+```{r echo = T}
 # A simple type of caching...
 # Do we want to run the modelling code, or
 # load a previously saved result from disk, or
 # download a previously saved result from a repository?
 # default is not run, then check if there is a saved file, and use that, or download
 
+# devtools::install_github('centerforopenscience/osfr')
 library(osfr)
 
-rerun_timeconsuming_analysis <- FALSE # FALSE for do not run the modelling code
+rerun_time_consuming_analysis <- FALSE # FALSE for do not run the modelling code
 
-if(rerun_timeconsuming_analysis) {
+if(rerun_time_consuming_analysis) {
   message("running the modelling code, this may take 30-50 min...")
   # go to the next chunk of code
 } else {
@@ -188,12 +236,13 @@ if(rerun_timeconsuming_analysis) {
   trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
   message("Loading the data downloaded from osf.io...")
   trend_dat <- readRDS('data/derived-data/trend_dat.rda')
+  writeLines(paste0('trend_dat downloded from https://osf.io/kcr2e/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
   message("Done.")
   } 
 }
 ```
 
-```{r, eval = rerun_timeconsuming_analysis}
+```{r, eval = rerun_time_consuming_analysis}
 trend_dat <- response_levels %>%
   mutate(data = map2(prefix, categories, ~preprocess(.x,.y)),
          n_cats = map_dbl(categories, length), 
@@ -202,6 +251,19 @@ trend_dat <- response_levels %>%
 
 # save to disk
 saveRDS(trend_dat, file = "data/derived-data/trend_dat.rda")
+# and upload to osf.io
+osf_retrieve_file("kcr2e") %>% osf_upload("data/derived-data/trend_dat.rda", overwrite = TRUE)
+
+# write a note to indicate the provenance of this file
+this_commit <-  git2r::revparse_single(git2r::repository('.'), "HEAD")
+writeLines(paste0('trend_dat generated on ',
+                   Sys.Date() , ' from archaeoglobe.Rmd at git commit ',
+                    this_commit$sha, ' made by ',
+                    this_commit$author$name, ' on ',
+                    this_commit$author$when, " with the message '",
+                    this_commit$summary, "'"),
+           con = 'data/derived-data/README.md', 
+           sep = '')
 message("Done.")
 ```
 
@@ -211,7 +273,7 @@ message("Done.")
 
 First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
  
- ```{r echo = FALSE}
+```{r echo = FALSE}
  g1data <- trend_dat[3,]$mod[[1]] %>%
     mgcv::plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
@@ -320,18 +382,10 @@ g6 <- ggplot(g6data,
     theme_bw()
 ```
 
-```{r gridxtra, echo=FALSE}
-library(gridExtra)
-png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
-grid.arrange(grobs = list(g1, g2, g3, g4, g5 ,g6), ncol = 2, nrow = 3)
-dev.off()
-```
 
 ```{r echo=FALSE}
-png('figures/global_trends.png', height = 12, width = 12, units = "in", res = 300)
+# global trends
 (g1 + g2) / (g3 + g4) / (g5 + g6)
-dev.off()
-knitr::include_graphics("figures/global_trends.png")
 ```
 
 ```{r, echo = FALSE}
