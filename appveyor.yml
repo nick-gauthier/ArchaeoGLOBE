@@ -21,6 +21,7 @@ environment:
 
 build_script:
   - travis-tool.sh install_deps
+  - R -e "setwd('/archaeoglobe/analysis'); rmarkdown::render('archaeoglobe.Rmd')"
 
 test_script:
   - travis-tool.sh run_tests
@@ -47,13 +48,4 @@ artifacts:
 
   - path: '\*_*.zip'
     name: Bits
-<<<<<<< HEAD
-=======
-    
-    
-  - path: '\*_*.tar.gz'
-    name: Bits
 
-  - path: '\*_*.zip'
-    name: Bits
->>>>>>> ba29aa859b3a8734c38dc3574a4f1232747baf66
