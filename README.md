@@ -24,7 +24,7 @@ Please cite this compendium using the archival URL (and not a GitHub URL):
 
 ### How to view, run, download
 
-You can view the results of the analysis online here: <https://benmarwick.github.io/ArchaeoGLOBE/archaeoglobe.html>
+You can view the results of the analysis online here: <https://benmarwick.github.io/ArchaeoGLOBE/analysis/archaeoglobe.html>
 
 You can run the code in your browser (no download or install required) by [launching Binder](http://beta.mybinder.org/v2/gh/benmarwick/ArchaeoGLOBE/master?urlpath=rstudio)
 
