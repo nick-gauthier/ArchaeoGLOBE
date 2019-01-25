@@ -17,5 +17,5 @@ Imports:
     patchwork,
     dataverse,
     git2r, 
-    mapshaper
+    rmapshaper
 RoxygenNote: 6.1.1
