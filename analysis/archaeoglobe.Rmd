@@ -395,6 +395,7 @@ g6 <- ggplot(g6data,
 ```{r echo=FALSE}
 # global trends
 (g1 + g2) / (g3 + g4) / (g5 + g6)
+ggsave('figures/global_trends.png', height = 12, width = 12)
 ```
 
 ```{r, echo = FALSE}
