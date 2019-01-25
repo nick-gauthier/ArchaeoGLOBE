@@ -221,7 +221,7 @@ Now map each of the above functions to each variable. This allows us to run the 
 # devtools::install_github('centerforopenscience/osfr')
 library(osfr)
 
-rerun_time_consuming_analysis <- FALSE # FALSE for do not run the modelling code
+rerun_time_consuming_analysis <- FALSE # FALSE means do not run the modelling code when knitting
 
 if(rerun_time_consuming_analysis) {
   message("running the modelling code, this may take 30-50 min...")
