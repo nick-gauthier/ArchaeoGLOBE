@@ -77,7 +77,7 @@ ArchaeoGLOBE_Regions_DOI <-
 ArchaeoGLOBE_Regions_df <- 
   get_dataset(ArchaeoGLOBE_Regions_DOI) 
 
-# don't get the restricted files
+# just download the shapefile we want
 ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
 
 # read into local dir
@@ -239,7 +239,7 @@ if(rerun_time_consuming_analysis) {
   trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
   message("Loading the data downloaded from osf.io...")
   trend_dat <- readRDS('data/derived-data/trend_dat.rda')
-  writeLines(paste0('trend_dat downloded from https://osf.io/kcr2e/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
+  writeLines(paste0('trend_dat.rda downloded from https://osf.io/kcr2e/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
   message("Done.")
   } 
 }
@@ -256,11 +256,6 @@ trend_dat <- response_levels %>%
 saveRDS(trend_dat, 
         file = "data/derived-data/trend_dat.rda")
 
-# and upload to osf.io
-osf_retrieve_file("kcr2e") %>% 
-  osf_upload("data/derived-data/trend_dat.rda", 
-             overwrite = TRUE)
-
 # write a note to indicate the provenance of this file
 this_commit <-  git2r::revparse_single(git2r::repository('.'), "HEAD")
 writeLines(paste0('trend_dat generated on ',
@@ -272,6 +267,24 @@ writeLines(paste0('trend_dat generated on ',
            con = 'data/derived-data/README.md', 
            sep = '')
 message("Done.")
+```
+
+```{r eval = FALSE, echo = FALSE}
+# If we have freshly produced model output, we want to 
+# upload to osf.io, this needs to be done manually because we need to 
+# authenticate and don't want to put our PAT in the Rmd
+
+osf_auth("my-PAT-for-OSF") # Navigate to https://osf.io/settings/tokens/
+
+# upload the model data
+osf_retrieve_node("gcfs6") %>% 
+  osf_upload(path = "data/derived-data/trend_dat.rda", 
+             overwrite = TRUE)
+
+# upload the README
+osf_retrieve_node("gcfs6") %>% 
+  osf_upload(path = "data/derived-data/README.md", 
+             overwrite = TRUE)
 ```
 
 # Results
