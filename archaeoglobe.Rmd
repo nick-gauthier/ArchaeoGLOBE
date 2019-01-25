@@ -32,8 +32,8 @@ library(tidyverse)
 library(mgcv)
 library(sf)
 
-#install patchwork from github 
-#devtools::install_github('thomasp85/patchwork')
+# install patchwork from github if needed
+# devtools::install_github('thomasp85/patchwork')
 library(patchwork)
 ```
 
@@ -53,7 +53,7 @@ Before running any analyses, let's look at the data. How many responses do we ha
 ```{r}
 response_counts <- archaeoglobe %>% 
   group_by(REGION_ID) %>%
-  count 
+  count
 ```
 
 ```{r, fig.width = 6.5, fig.height = 8, echo = FALSE}
@@ -121,7 +121,7 @@ fit_gam <- function(x, n_cats){
 }
 ```
 
-This function extracts the estimated trends for each region, incorporating the global and regional splines as well as the region and contributor specific intercepts. Then it clusters these trends into 6 discrete clusters.
+This function extracts the estimated trends for each region, incorporating the global and regional splines as well as the region and contributor specific intercepts. Then it clusters these trends into 6 discrete clusters using k-means. The choice of 6 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal of ensuring visually interpretable results.
 
 ```{r}
 extract_trends <-function(mod, n_clusters = 6){
@@ -159,7 +159,7 @@ response_levels <- tribble(
 )
 ```
 
-Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single step, and save all the outputs in a tibble format for easy plotting. This will take a long time, so the results are cached by default for future use. If you're running this for the first time, it should take about 40 minutes to run on a Intel NUC with a 5th-gen Intel Core i7-5557U processor and 16gb of RAM running Linux.
+Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single step, and save all the outputs in a tibble format for easy plotting. This will take a long time, so the results are cached by default for future use. If you're running this for the first time, it should take about 40 minutes to run on a Intel NUC with a 5th-gen Intel Core i7 processor and 16gb of RAM running Linux.
 
 ```{r, cache = TRUE}
 trend_dat <- response_levels %>%
@@ -171,9 +171,17 @@ trend_dat <- response_levels %>%
 
 # Results
 
-## Global Trends
+First we plot out the global trends for each land use type. Then we plot out the local (regional trends) for all land use types, and map out their associated clusters. Please refer to the .rmd source file for the code to make the plots.
 
-First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
+The global trend in hunting shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing hunting earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in hunting.
+
+The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
+
+How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
+
+The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
+
+## Global Trends
 
 ```{r, echo = FALSE}
 g1 <- trend_dat[3,]$mod[[1]] %>%
@@ -259,6 +267,7 @@ g6 <- trend_dat[2,]$mod[[1]] %>%
 ggsave('figures/global_trends.png', height = 12, width = 12)
 ```
 
+## Regional Trends
 
 ```{r, echo = FALSE}
 plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional land-use trends'){
@@ -294,12 +303,7 @@ plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional lan
 }
 ```
 
-
-## Hunting
-
-The global trend in hunting shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing hunting earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in hunting.
-
-```{r echo = FALSE, fig.width = 6.5, fig.cap = 'Regional trends in the areal extent of hunting. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.'}
+```{r echo = FALSE, fig.width = 6.5}
 trend_dat[3, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
@@ -308,11 +312,6 @@ trend_dat[3, ] %>%
   plot_trends('Hunting')
 ggsave('figures/trends_hunting.png', height = 8, width = 12)
 ```
-
-
-## Extensive Agriculture
-
-The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
 
 ```{r echo = FALSE, fig.width = 6.5}
 trend_dat[4, ] %>%
@@ -324,10 +323,6 @@ plot_trends('Extensive Agriculture')
 ggsave('figures/trends_extensive.png', height = 8, width = 12)
 ```
 
-## Intensive Agriculture
-
-See above.
-
 ```{r echo = FALSE, fig.width = 6.5}
 trend_dat[5, ] %>%
   mutate(trends = map(trends, ~mutate(.,
@@ -337,10 +332,6 @@ trend_dat[5, ] %>%
 plot_trends('Intensive Agriculture')
 ggsave('figures/trends_intensive.png', height = 8, width = 12)
 ```
-
-## Pastoralism
-
-See above.
 
 ```{r echo = FALSE, fig.width = 6.5}
 trend_dat[6, ] %>%
@@ -352,10 +343,7 @@ plot_trends('Pastoralism')
 ggsave('figures/trends_pastoralism.png', height = 8, width = 12)
 ```
 
-## Urbanism
-
-See above.
-```{r echo = FALSE, fig.width = 6.5, fig.cap = 'Global and regional trends in the presence of urban centers. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.'}
+```{r echo = FALSE, fig.width = 6.5}
 trend_dat[7, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
@@ -363,28 +351,6 @@ trend_dat[7, ] %>%
                                  `4` = '4', `1` = '5', `3` = '6')))) %>%
 plot_trends('Urbanism')
 ggsave('figures/trends_urbanism.png', height = 8, width = 12)
-```
-
-
-## Expertise and Data Quality
-
-How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
-
-Now we cluster together the local deviations from the global trend using a k-means algorithm. The selection of 6 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal making the results visually interpretable. The trajectories in these clusters are deviations from the global trend, so a horizontal line would indicate no deviation from the global trend.
-
-The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
-
-```{r, echo = FALSE, fig.width = 6.5}
-trend_dat[2, ] %>%
-  mutate(trends = map(trends, ~mutate(., 
-                                  cluster = recode_factor(cluster, 
-                                 `3` = '1', `2` = '2',`6` = '3', 
-                                 `1` = '4', `5` = '5', `4` = '6')))) %>%
-  plot_trends('Data Quality', color_theme = 'RdYlBu', title = 'Archaeological trends') + 
-  scale_y_continuous(breaks = c(0, 1), labels = c('Unknown', 'Good')) +
-  labs( x = 'Thousand years BP', y = 'Quality')
-
-ggsave('figures/trends_quality.png', height = 8, width = 12)
 ```
 
 ```{r, echo = FALSE, fig.width = 6.5}
@@ -400,4 +366,15 @@ trend_dat[1, ] %>%
 ggsave('figures/trends_exp.png', height = 8, width = 12)
 ```
 
+```{r, echo = FALSE, fig.width = 6.5}
+trend_dat[2, ] %>%
+  mutate(trends = map(trends, ~mutate(., 
+                                  cluster = recode_factor(cluster, 
+                                 `3` = '1', `2` = '2',`6` = '3', 
+                                 `1` = '4', `5` = '5', `4` = '6')))) %>%
+  plot_trends('Data Quality', color_theme = 'RdYlBu', title = 'Archaeological trends') + 
+  scale_y_continuous(breaks = c(0, 1), labels = c('Unknown', 'Good')) +
+  labs( x = 'Thousand years BP', y = 'Quality')
 
+ggsave('figures/trends_quality.png', height = 8, width = 12)
+```
