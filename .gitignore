@@ -4,8 +4,11 @@
 
 # Session Data files
 .RData
+<<<<<<< HEAD
 *.Rda
 *.rda
+=======
+>>>>>>> upstream/master
 
 # Example code in package build process
 *-Ex.R
@@ -39,6 +42,9 @@ rsconnect/
 .Rproj.user
 
 *.zip
+<<<<<<< HEAD
 
 # OSX junk
 .DS_Store
+=======
+>>>>>>> upstream/master
