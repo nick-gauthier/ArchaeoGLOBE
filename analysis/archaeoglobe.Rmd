@@ -3,12 +3,12 @@ title: "ArchaeoGLOBE trend analysis"
 author: "Nick Gauthier"
 date: "Last knit on: `r format(Sys.time(), '%d %B, %Y')`"
 output: 
-  html_document: 
-    highlight: pygments
-    theme: cosmo
   pdf_document: 
     highlight: pygments
     latex_engine: lualatex
+  html_document: 
+    highlight: pygments
+    theme: cosmo
 ---
 
 ```{r setup, include=FALSE}
