@@ -291,7 +291,7 @@ osf_retrieve_node("gcfs6") %>%
 
 First we plot out the global trends for each land use type. Then we plot out the local (regional trends) for all land use types, and map out their associated clusters. Please refer to the .rmd source file for the code to make the plots.
 
-The global trend in hunting shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing hunting earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in hunting.
+The global trend in foraging shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing foraging earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in foraging.
 
 The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
 
@@ -302,7 +302,7 @@ The global trend in data quality is more or less the same as the expertise data,
 ## Global Trends
 
 ```{r echo = FALSE}
- g1data <- trend_dat[3,]$mod[[1]] %>%
+g1data <- trend_dat[3,]$mod[[1]] %>%
     mgcv::plot.gam(select = 0) %>% # selects the global trend
     .[1] %>%
     map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
@@ -315,7 +315,7 @@ g1 <- ggplot(g1data,
     geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
     scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'A', x = 'Thousand years BP', y = 'Hunting')  +
+    labs(title = 'A', x = 'Thousand years BP', y = 'Foraging')  +
     theme_bw()
 
 g2data <- trend_dat[6,]$mod[[1]] %>%
@@ -448,8 +448,8 @@ trend_dat[3, ] %>%
                                  cluster = recode_factor(cluster, 
                                  `6` = '1', `5` = '2',`1` = '3', 
                                  `2` = '4', `3` = '5', `4` = '6')))) %>%
-  plot_trends('Hunting')
-ggsave('figures/trends_hunting.png', height = 8, width = 12)
+  plot_trends('Foraging')
+ggsave('figures/trends_foraging.png', height = 8, width = 12)
 ```
 
 ```{r echo = FALSE, fig.width = 6.5}
