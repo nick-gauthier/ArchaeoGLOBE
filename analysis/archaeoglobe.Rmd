@@ -163,7 +163,25 @@ consensus %>%
   group_by(land_use_category_consensus_assessments, 
            years_BP) %>% 
   summarise(n = n()) %>% 
-  mutate(perc = n / sum(n) * 100) 
+  mutate(perc = n / sum(n) * 100)  %>% 
+  ungroup() %>% 
+  # make an ordered factor for nice plotting
+  mutate(land_use_category_consensus_assessments = 
+           fct_relevel(land_use_category_consensus_assessments, 
+                       c(
+                         "Foraging Common",
+                         "Foraging Widespread",
+                         "Extensive Agriculture Common",
+                         "Extensive Agriculture Widespread",
+                         "Intensive Agriculture Common",
+                         "Intensive Agriculture Widespread",
+                         "Pastoralism Common",
+                         "Pastoralism Widespread",
+                         "Urban Centers Present",
+                         "Urban Centers Split"
+                         )))
+  
+  
   
 # make years label and breaks
 years_label <- unique(ifelse(cumsum_landuse_regions$years_BP < 0,
