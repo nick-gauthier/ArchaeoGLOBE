@@ -56,16 +56,17 @@ ArchaeoGLOBE_Public_Data_df <-
 
 # Only download the file we need here
 ArchaeoGLOBE_Public_Data_df_files <- 
-  ArchaeoGLOBE_Public_Data_df$files[grepl("ARCHAEOGLOBE_PUBLIC_DATA", 
+  ArchaeoGLOBE_Public_Data_df$files[grepl("ARCHAEOGLOBE_PUBLIC_DATA|ARCHAEOGLOBE_CONSENSUS_ASSESSMENT", 
                                           ArchaeoGLOBE_Public_Data_df$files$filename), ]
 
 # read into local dir
 walk(ArchaeoGLOBE_Public_Data_df_files$label,
-    ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
-      writeBin(paste0('data/raw-data/', .x)))
+     ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
+       writeBin(paste0('data/raw-data/', .x)))
 
 # read into the current environment
 archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
+consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 ```
 
 ```{r dataverse-shapefile, echo=T}
@@ -125,6 +126,81 @@ b <- ggplot(response_counts, aes(n)) +
 a + b + plot_layout(ncol = 1)
 ggsave('figures/response_distribution.png', width = 6.5, height = 8)
 ```
+
+Here is the cumulative summary of regions per land-use category based on consensus assessments (Common > 1% to 20% regional  land area; Widespread > 20% regional land area). 
+
+```{r}
+
+cumsum_landuse_regions <- 
+consensus %>% 
+  select(Region, FHG_10KBP:URBAN_1850CE) %>% 
+  gather(variable, value, - Region) %>% 
+  filter(value %in% c("Widespread", "Common", "Split", "Present")) %>% 
+  separate(variable, into = c("land_use_category", "years_BP"), sep = "_") %>% 
+  mutate(land_use_category = ifelse(str_detect(land_use_category, "AGR"),
+                                    str_replace_all(land_use_category , 
+                                                    "AGR", 
+                                                    "AG"),
+                                    land_use_category)) %>% 
+  mutate(land_use_category = case_when(
+    land_use_category == "FHG"   ~  "Foraging",
+    land_use_category == "EXAG"  ~  "Extensive Agriculture",
+    land_use_category == "INAG"  ~  "Intensive Agriculture",
+    land_use_category == "PAS"   ~  "Pastoralism",
+    land_use_category == "URBAN" ~  "Urban Centers") 
+    ) %>% 
+  mutate(years_BP = ifelse(str_detect(tolower(years_BP), "kbp"), 
+                           -parse_number(years_BP) * 1000,
+                           ifelse(str_detect(tolower(years_BP), "ce"), 
+                           parse_number(years_BP),
+                           -parse_number(years_BP)))) %>% 
+  unite(land_use_category_consensus_assessments, 
+        c('land_use_category', 
+          'value'),
+        sep = " ") %>%
+  complete(land_use_category_consensus_assessments,
+           nesting(years_BP)) %>% 
+  group_by(land_use_category_consensus_assessments, 
+           years_BP) %>% 
+  summarise(n = n()) %>% 
+  mutate(perc = n / sum(n) * 100) 
+  
+# make years label and breaks
+years_label <- unique(ifelse(cumsum_landuse_regions$years_BP < 0,
+                      str_glue('{-cumsum_landuse_regions$years_BP} BP'),
+                      str_glue('{cumsum_landuse_regions$years_BP} CE')
+                      ))
+
+years_breaks <- unique(cumsum_landuse_regions$years_BP)
+
+# draw the plot
+ggplot(
+  cumsum_landuse_regions,
+  aes(years_BP,
+      perc,
+      fill = land_use_category_consensus_assessments)) +
+  geom_area(position = 'stack') +
+  scale_fill_brewer(palette = "Set3") +
+  scale_x_continuous(labels = years_label,
+                     breaks = years_breaks) +
+  theme_minimal(base_size = 10) +
+  theme(
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5),
+    #  x- and y- offsets from the bottom-left of the plot, ranging from 0 - 1.
+    legend.position = c(0.4, 0.85),
+    legend.text = element_text(size = 10),
+    legend.key.size = unit(0.7, "line")) +
+  guides(fill = guide_legend(ncol = 2, 
+                             title = "Land-use category based on consensus assessments")) +
+  xlab("") +
+  ylab("Percent of all regions")
+
+ggsave('figures/cumulative_sum_land_use.png', height = 5, width = 7)
+```
+
 
 ## Analysis functions
 
@@ -199,9 +275,9 @@ Now we use the functions defined above on the ArchaeoGlobe data. For convenience
 ```{r}
 response_levels <- tribble(
   ~prefix, ~categories,
-  'EXP', c('None', 'Low', 'High'),
-  'DQ', c('Unknown', 'Low', 'Moderate', 'Good'),
-  'HUNT', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
+  'EXP', c('None', 'Low', 'High'),                  # Expertise
+  'DQ', c('Unknown', 'Low', 'Moderate', 'Good'),    # Data Quality
+  'HUNT', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'), 
   'EXAG', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
   'INAG', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
   'PAST', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
