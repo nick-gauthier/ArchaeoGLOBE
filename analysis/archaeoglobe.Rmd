@@ -345,33 +345,117 @@ g2 <- global_trends %>%
 ggplot(aes(time, fit, group = type)) +
   geom_line(aes(color = type), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
-  scale_color_discrete(name = 'Land Use') +
-  scale_fill_discrete(name = 'Land Use') +
+  scale_color_discrete(guide = FALSE) +
+  scale_fill_discrete(guide = FALSE) +
   scale_x_continuous(breaks = c(-10,-8,-6,-4,-2,0), minor_breaks = NULL) +
   scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
-  labs(title = 'B', x = 'Thousand years BP', y = 'Archaeological \nknowledge') +
+  labs(x = 'Thousand years BP', y = 'Archaeological \nknowledge') +
   theme_bw() +
+  theme(strip.background = element_blank()) +
   facet_wrap(~type)
 
-g1 + g2 + plot_layout(ncol = 1, heights = c(2,1))
+g1 + g2 + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = 'A')
 
-ggsave('figures/global_trends.png', height = 12, width = 12)
+ggsave('figures/global_trends.png', height = 6, width = 6.5)
 ```
+
+
+```{r}
+cumsum_landuse_regions <- consensus %>% 
+  select(Region, FHG_10KBP:URBAN_1850CE) %>% 
+  gather(variable, value, -Region) %>% 
+  filter(value %in% c('Widespread', 'Common', 'Split', 'Present')) %>% 
+  separate(variable, into = c('land_use_category', 'years_BP'), sep = '_') %>% 
+  mutate(land_use_category = ifelse(str_detect(land_use_category, 'AGR'),
+                                    str_replace_all(land_use_category , 
+                                                    'AGR', 
+                                                    'AG'),
+                                    land_use_category)) %>% 
+  mutate(land_use_category = case_when(
+    land_use_category == 'FHG'   ~  'Foraging',
+    land_use_category == 'EXAG'  ~  'Extensive Agriculture',
+    land_use_category == 'INAG'  ~  'Intensive Agriculture',
+    land_use_category == 'PAS'   ~  'Pastoralism',
+    land_use_category == 'URBAN' ~  'Urban Centers') 
+    ) %>% 
+  mutate(years_BP = ifelse(str_detect(tolower(years_BP), 'kbp'), 
+                           -parse_number(years_BP) * 1000,
+                           ifelse(str_detect(tolower(years_BP), 'ce'), 
+                           parse_number(years_BP),
+                           -parse_number(years_BP)))) %>% 
+  unite(land_use_category_consensus_assessments, 
+        c('land_use_category', 
+          'value'),
+        sep = ' ') %>%
+  complete(land_use_category_consensus_assessments,
+           nesting(years_BP)) %>% 
+  group_by(land_use_category_consensus_assessments, 
+           years_BP) %>% 
+  summarise(n = n()) %>% 
+  mutate(perc = n / sum(n) * 100)  %>% 
+  ungroup() %>% 
+  # make an ordered factor for nice plotting
+  mutate(land_use_category_consensus_assessments = 
+           fct_relevel(land_use_category_consensus_assessments, 
+                       c('Extensive Agriculture Common',
+                         'Extensive Agriculture Widespread',
+                         'Intensive Agriculture Common',
+                         'Intensive Agriculture Widespread',
+                         'Pastoralism Common',
+                         'Pastoralism Widespread',
+                          'Foraging Common',
+                         'Foraging Widespread',
+                         'Urban Centers Split',
+                         'Urban Centers Present'
+                         ))) %>%
+  mutate(years_BP = if_else(years_BP > 0, years_BP - 1950, years_BP))
+```
+
+```{r, eval = F, echo = F, fig.width =6.5, fig.height = 4}
+cumsum_landuse_regions %>%
+ggplot(aes(years_BP, perc, fill = land_use_category_consensus_assessments)) +
+  geom_area(position = 'stack') +
+  scale_fill_brewer(palette = 'Paired') +
+  theme_minimal() +
+  theme(legend.position = c(0.4, 0.85), #  x- and y- offsets from the bottom-left of the plot, ranging from 0 - 1.
+    legend.text = element_text(size = 10),
+    legend.key.size = unit(0.7, 'line')) +
+    guides(fill = guide_legend(ncol = 2, title = 'Land-use category based on consensus assessments')) +
+  labs(x = 'Years BP', y = 'Percent of all regions')
+```
+
+```{r, fig.height = 5, fig.width = 7}
+ggplot(cumsum_landuse_regions, 
+       aes(years_BP, perc, fill = land_use_category_consensus_assessments)) +
+  geom_area(position = 'fill', color = 'black') +
+  scale_fill_brewer(palette = 'Paired') +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+legend.text = element_text(size = 10),
+    legend.key.size = unit(0.7, 'line'),
+    legend.position = 'bottom') +
+    guides(fill = guide_legend(title = 'Land use based on \nconsensus assessments', nrow = 5, byrow = TRUE)) +
+  labs(x = 'Years BP', y = 'Proportion of global land use')
+
+
+ggsave('figures/cumulative_sum_land_use.png', height = 5, width = 7)
+```
+
 
 ## Regional Trends
 
 ```{r, echo = FALSE}
-plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional land-use trends'){
+plot_trends <- function(x, variable, color_theme = 'PuOr', tag){
   p1 <- x$trends[[1]] %>%
     gather(time, value, '-10000':'-150') %>%
     ggplot(aes(as.numeric(time) / 1000, value, 
                group = REGION_LAB, color = as.factor(cluster))) +
     geom_line() +
     scale_color_brewer(palette = color_theme, guide = 'none') +
-    scale_x_continuous(breaks = c( -8,-6,-4,-2)) +
+    scale_x_continuous(breaks = c(-8,-6,-4,-2), minor_breaks = NULL) +
     scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread')) +
     facet_wrap(~cluster, nrow = 1) +
-    labs(x = 'Thousand years BP', y = 'Extent') +
+    labs(x = 'Thousand years BP', y = '') +
     theme_minimal() +
     theme(strip.background = element_blank(),strip.text.x = element_blank())
   
@@ -385,53 +469,74 @@ plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional lan
     ggplot() + # plot
     geom_sf(aes(fill = as.factor(cluster)), size = .3, color = 'white') +
     geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
-    labs(title = title, subtitle = variable, x = '', y='') +
+    labs(subtitle = variable, x = '', y='', tag = tag) +
     scale_fill_brewer(palette = color_theme, guide = 'none') +  
-    theme_minimal()
+    coord_sf(datum = NA) +
+    theme_void()
   
   # the patchwork command that prints the multipanel plots
-  p2/p1 + plot_layout(heights = c(5,1), widths = c(4,1))
+  (p2/p1) + plot_layout(heights = c(5,1), widths = c(4,1))
 }
 ```
 
-```{r echo = FALSE, fig.width = 6.5}
-trend_dat[3, ] %>%
-  mutate(trends = map(trends, ~mutate(.,
-                                 cluster = recode_factor(cluster, 
-                                 `6` = '1', `5` = '2',`1` = '3', 
-                                 `2` = '4', `3` = '5', `4` = '6')))) %>%
-  plot_trends('Foraging')
-ggsave('figures/trends_foraging.png', height = 8, width = 12)
-```
-
-```{r echo = FALSE, fig.width = 6.5}
-trend_dat[4, ] %>%
+```{r, fig.width = 12, fig.height=8}
+r1 <- trend_dat[4, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
                                  `4` = '1', `2` = '2',`1` = '3', 
                                  `5` = '4', `3` = '5', `6` = '6')))) %>%
-plot_trends('Extensive Agriculture')
-ggsave('figures/trends_extensive.png', height = 8, width = 12)
-```
+  plot_trends('Extensive Agriculture', tag = 'A')
 
-```{r echo = FALSE, fig.width = 6.5}
-trend_dat[5, ] %>%
+r2 <- trend_dat[5, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
                                 `6` = '1', `5` = '2', `3` = '3', 
                                  `1` = '4', `2` = '5', `4` = '6')))) %>%
-plot_trends('Intensive Agriculture')
-ggsave('figures/trends_intensive.png', height = 8, width = 12)
+plot_trends('Intensive Agriculture', tag = 'B')
+
+r3 <- trend_dat[6, ] %>%
+  mutate(trends = map(trends, ~mutate(.,
+                                 cluster = recode_factor(cluster, 
+                                 `3` = '1', `5` = '2',`1` = '3', 
+                                 `6` = '4', `4` = '5', `2` = '6')))) %>%
+plot_trends('Pastoralism', tag = 'C')
+
+r4 <- trend_dat[3, ] %>%
+  mutate(trends = map(trends, ~mutate(.,
+                                 cluster = recode_factor(cluster, 
+                                 `6` = '1', `5` = '2',`1` = '3', 
+                                 `2` = '4', `3` = '5', `4` = '6')))) %>%
+  plot_trends('Foraging', tag = 'D')
+
+(r1 | r2 ) / (r3 | r4)
+
+ggsave('figures/trends_map_landuse.png', height = 8, width = 12)
+```
+
+```{r}
+#temporarily stop knitting here
+knitr::knit_exit()
+```
+
+
+```{r echo = FALSE, fig.width = 12, fig.height = 8}
+r4
+ggsave('figures/trends_foraging.png', height = 8, width = 12)
 ```
 
 ```{r echo = FALSE, fig.width = 6.5}
-trend_dat[6, ] %>%
-  mutate(trends = map(trends, ~mutate(.,
-                                 cluster = recode_factor(cluster, 
-                                 `6` = '1', `5` = '2',`3` = '3', 
-                                 `1` = '4', `4` = '5', `2` = '6')))) %>%
-plot_trends('Pastoralism')
+r3
 ggsave('figures/trends_pastoralism.png', height = 8, width = 12)
+```
+
+```{r echo = FALSE, fig.width = 6.5}
+r1
+ggsave('figures/trends_extensive.png', height = 8, width = 12)
+```
+
+```{r echo = FALSE, fig.width = 6.5}
+r2
+ggsave('figures/trends_intensive.png', height = 8, width = 12)
 ```
 
 ```{r echo = FALSE, fig.width = 6.5}
