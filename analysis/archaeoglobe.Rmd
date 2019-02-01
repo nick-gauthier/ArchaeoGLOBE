@@ -23,17 +23,18 @@ We model ordered categorical data using a latent variable following a logistic d
 
 We fit two sets of trends. One trend is fitted to all the data simultaneously, representing the global trend across all archaeological regions. Then we fit region-level trends, which represent the deviation of each region from the global trend. By penalizing the "wiggliness" of the trend lines, we allow regional trends that don't significantly deviate from the global trend to be penalized to 0, effectively reducing that particular region to the global trend. This is a form of partial pooling, allowing the model to share information between groups and in so doing make the results less sensitive to regions with exceptionally low response rates.
 
-After fitting the model, we can extract the region-specific deviations from the global trend, use a k-means clustering alogirithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
+After fitting the model, we can extract the region-specific deviations from the global trend, use a k-means clustering algorithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
 
 # Setup
 
-Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` package to help us plot shapefiles in a tidy context. Finally, we'll use `patchwork` to combine multiple ggplots in the same image.
+Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` package to help us plot shapefiles in a tidy context. The `dataverse` package allows us to pull the raw survey data from its online repository. Finally, we'll use `patchwork` (installed from GitHub) to combine multiple ggplots in the same image.
 
 ```{r, message = FALSE}
 library(tidyverse)
 library(mgcv)
 library(sf)
 library(ggplot2)
+library(dataverse)
 
 #install patchwork from github 
 #devtools::install_github('thomasp85/patchwork')
@@ -45,33 +46,28 @@ library(patchwork)
 Read in the latest version of the ArchaeoGLOBE database and the regions' shapefile from the Dataverse repository.
 
 ```{r dataverse-database, echo=T}
-library("dataverse")
-Sys.setenv("DATAVERSE_SERVER" = "dataverse.harvard.edu")
+Sys.setenv('DATAVERSE_SERVER' = 'dataverse.harvard.edu')
 
 # get data frame of files on dataverse
-ArchaeoGLOBE_Public_Data_DOI <- 
-  "doi:10.7910/DVN/CNCANQ"
-ArchaeoGLOBE_Public_Data_df <- 
-  get_dataset(ArchaeoGLOBE_Public_Data_DOI)
+ArchaeoGLOBE_Public_Data_DOI <- 'doi:10.7910/DVN/CNCANQ'
+ArchaeoGLOBE_Public_Data_df <- get_dataset(ArchaeoGLOBE_Public_Data_DOI)
 
 # Only download the file we need here
 ArchaeoGLOBE_Public_Data_df_files <- 
-  ArchaeoGLOBE_Public_Data_df$files[grepl("ARCHAEOGLOBE_PUBLIC_DATA", 
+  ArchaeoGLOBE_Public_Data_df$files[grepl('ARCHAEOGLOBE_PUBLIC_DATA|ARCHAEOGLOBE_CONSENSUS_ASSESSMENT', 
                                           ArchaeoGLOBE_Public_Data_df$files$filename), ]
-
 # read into local dir
 walk(ArchaeoGLOBE_Public_Data_df_files$label,
-    ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
-      writeBin(paste0('data/raw-data/', .x)))
-
+     ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
+       writeBin(paste0('data/raw-data/', .x)))
 # read into the current environment
 archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
+consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 ```
 
 ```{r dataverse-shapefile, echo=T, eval = F}
 # repeat for shapefile
-ArchaeoGLOBE_Regions_DOI <-  
-  "doi:10.7910/DVN/CQWUBI"
+ArchaeoGLOBE_Regions_DOI <-  'doi:10.7910/DVN/CQWUBI'
 
 # get data frame of files on DV
 ArchaeoGLOBE_Regions_df <- 
