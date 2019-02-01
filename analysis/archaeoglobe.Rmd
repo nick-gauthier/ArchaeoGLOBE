@@ -107,27 +107,33 @@ Before running any analyses, let's look at the data. How many responses do we ha
 ```{r}
 response_counts <- archaeoglobe %>% 
   group_by(REGION_ID) %>%
-  count
+  count %>%
+  mutate(n10 = replace(n, n > 10, 10))
 ```
 
-```{r, fig.width = 6.5, fig.height = 8, echo = FALSE}
+```{r, fig.width = 6.5, fig.height = 5.5, echo = FALSE}
 a <- regions %>%
   left_join(response_counts, by = c('Archaeo_ID' = 'REGION_ID')) %>%
   mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
   ggplot() +
-  geom_sf(aes(fill = n), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Count', guide = 'legend') +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
-  labs(title = 'Total responses per region', subtitle = '', x = '', y='') +
-  theme_minimal()
+  geom_sf(aes(fill = n10), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Contributors', guide = 'legend', breaks = seq(2, 10, 2), labels = c(seq(2, 8, 2), '10+')) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  scale_x_continuous(breaks = c(-120,-60,0,60,120)) +
+  #coord_sf(xlim = c(-16651340, 16653290), ylim = c(-8411026, 8374612)) +
+  labs(title = 'A', x = 'Longitude', y='Latitude') +
+  coord_sf(datum = NA) +
+  theme_void() +
+    theme(legend.position="bottom")
 
-b <- ggplot(response_counts, aes(n)) +
-  geom_bar() +
-  theme_bw() +
-  labs(x = 'Responses per region', y = 'Number of regions')
+b <- ggplot(response_counts, aes(n, group = n)) +
+  geom_bar(aes(fill = n10)) +
+  scale_fill_viridis_c(guide = 'none') +
+  theme_classic() +
+  labs(title = 'B', x = 'Contributors', y = 'Regions')
 
-a + b + plot_layout(ncol = 1)
-ggsave('figures/response_distribution.png', width = 6.5, height = 8)
+a + b + plot_layout(ncol = 1, heights = c(2,1))
+ggsave('figures/response_distribution.png', width = 6.5, height = 5.5)
 ```
 
 ## Analysis functions
