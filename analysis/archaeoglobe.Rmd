@@ -68,7 +68,7 @@ walk(ArchaeoGLOBE_Public_Data_df_files$label,
 archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
 ```
 
-```{r dataverse-shapefile, echo=T}
+```{r dataverse-shapefile, echo=T, eval = F}
 # repeat for shapefile
 ArchaeoGLOBE_Regions_DOI <-  
   "doi:10.7910/DVN/CQWUBI"
@@ -90,11 +90,15 @@ unzip('data/raw-data/ArchaeGLOBE_Regions.zip',
       exdir = 'data/raw-data/ArchaeGLOBE_Regions')
 
 # read into the current environment, and simplify the polygons for faster plotting
-regions_unsimplified <- 
-  st_read('data/raw-data/ArchaeGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
+regions <- st_read('data/raw-data/ArchaeGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
           quiet = TRUE)
-regions <- rmapshaper::ms_simplify(regions_unsimplified)
 ```
+
+```{r}
+# temporary workaround
+regions <- st_read('../Simplified_Regions2/Simplified_Regions2.shp')
+```
+
 
 ## Exploratory plots
 
