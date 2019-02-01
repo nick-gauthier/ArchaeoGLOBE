@@ -311,108 +311,55 @@ The global trend in data quality is more or less the same as the expertise data,
 
 ## Global Trends
 
-```{r echo = FALSE}
-g1data <- trend_dat[3,]$mod[[1]] %>%
-    mgcv::plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-    
-g1 <- ggplot(g1data,
-           aes(time / 1000, plogis(fit))) +
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-    scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'A', x = 'Thousand years BP', y = 'Foraging')  +
-    theme_bw()
+```{r echo = FALSE, fig.width = 6.5, fig.height = 6}
+global_trends <- trend_dat %>%
+  select(prefix, mod) %>%
+  mutate(trends = map(mod, ~plot.gam(., select = 0)[1]),
+         trends = map(trends, ~.[[1]]),
+         trends = map(trends, ~tibble(time = .$x, fit = c(.$fit), se = .$se))) %>%
+  select(-mod) %>%
+  unnest %>%
+  mutate(type = recode_factor(prefix,
+          'EXAG' = 'Extensive Agriculture',
+         'INAG' = 'Intensive Agriculture',
+         'PAST' = 'Pastoralism',
+          'HUNT' = 'Foraging',
+         'URBN' = 'Urban',
+         'EXP' = 'Expertise',
+         'DQ' = 'Data Quality'),
+         time = time / 1000,
+         lower =  plogis(fit - 2 * se),
+         upper = plogis(fit + 2 * se),
+         fit = plogis(fit))
 
-g2data <- trend_dat[6,]$mod[[1]] %>%
-    mgcv::plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
+g1 <- global_trends %>%
+  filter(prefix %in% c('HUNT','PAST','EXAG','INAG')) %>%
+ggplot(aes(time, fit, group = type)) +
+  geom_line(aes(color = type), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
+  scale_color_viridis_d(name = 'Land Use') +
+  scale_fill_viridis_d(name = 'Land Use') +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
+  labs(title = 'A', x = 'Thousand years BP', y = 'Land-use extent\n') +
+  theme_bw() +
+  facet_wrap(~type)
 
-g2 <- ggplot(g2data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'B', x = 'Thousand years BP', y = 'Pastoralism') +
-    theme_bw()
+g2 <- global_trends %>%
+  filter(prefix %in% c('EXP', 'DQ')) %>%
+ggplot(aes(time, fit, group = type)) +
+  geom_line(aes(color = type), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
+  scale_color_discrete(name = 'Land Use') +
+  scale_fill_discrete(name = 'Land Use') +
+  scale_x_continuous(breaks = c(-10,-8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
+  labs(title = 'B', x = 'Thousand years BP', y = 'Archaeological \nknowledge') +
+  theme_bw() +
+  facet_wrap(~type)
 
-g3data <- trend_dat[4,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
+g1 + g2 + plot_layout(ncol = 1, heights = c(2,1))
 
-g3 <- ggplot(g3data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'C', x = 'Thousand years BP', y = 'Extensive \nAgriculture') +
-    theme_bw()
-    
-g4data <- trend_dat[5,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-
-g4 <- ggplot(g4data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'D', x = 'Thousand years BP', y = 'Intensive \nAgriculture') +
-    theme_bw()
-
-g5data <- trend_dat[1,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-
-g5 <- ggplot(g5data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
-    labs(title = 'E', x = 'Thousand years BP', y = 'Expertise') +
-    theme_bw()
-
-g6data <- trend_dat[2,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]]
-
-g6 <- ggplot(g6data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('Unknown', 'Good'), limits = c(0,1)) +
-    labs(title = 'F', x = 'Thousand years BP', y = 'Data Quality') +
-    theme_bw()
-```
-
-
-```{r echo=FALSE}
-# global trends
-(g1 + g2) / (g3 + g4) / (g5 + g6)
 ggsave('figures/global_trends.png', height = 12, width = 12)
 ```
 
