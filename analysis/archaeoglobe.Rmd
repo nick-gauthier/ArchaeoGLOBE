@@ -115,22 +115,20 @@ a <- regions %>%
   geom_sf(aes(fill = n10), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Contributors', guide = 'legend', breaks = seq(2, 10, 2), labels = c(seq(2, 8, 2), '10+')) +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
-  scale_x_continuous(breaks = c(-120,-60,0,60,120)) +
-  #coord_sf(xlim = c(-16651340, 16653290), ylim = c(-8411026, 8374612)) +
-  labs(title = 'A', x = 'Longitude', y='Latitude') +
   coord_sf(datum = NA) +
   theme_void() +
-    theme(legend.position="bottom")
+  theme(legend.position='bottom')
 
 b <- ggplot(response_counts, aes(n, group = n)) +
   geom_bar(aes(fill = n10)) +
   scale_fill_viridis_c(guide = 'none') +
   theme_classic() +
-  labs(title = 'B', x = 'Contributors', y = 'Regions')
+  labs(x = 'Contributors', y = 'Regions')
 
-a + b + plot_layout(ncol = 1, heights = c(2,1))
+a + b + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = 'A')
 ggsave('figures/response_distribution.png', width = 6.5, height = 5.5)
 ```
+
 
 ## Analysis functions
 
@@ -230,23 +228,23 @@ library(osfr)
 rerun_time_consuming_analysis <- FALSE # FALSE means do not run the modelling code when knitting
 
 if(rerun_time_consuming_analysis) {
-  message("running the modelling code, this may take 30-50 min...")
+  message('running the modelling code, this may take 30-50 min...')
   # go to the next chunk of code
 } else {
   # check if there is a local file and if so, load it
   if(file.exists('data/derived-data/trend_dat.rda')) {
     # the file exists on the local disk, so just read it in
-    message("Loading previously saved model results from disk...")
+    message('Loading previously saved model results from disk...')
     trend_dat <- readRDS('data/derived-data/trend_dat.rda')
   } else {
   # we don't want to run the modelling code, and the result don't exist locally,
   # so download
-  message("Downloading previously saved model results, takes 2-3 min...")
-  trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
-  message("Loading the data downloaded from osf.io...")
+  message('Downloading previously saved model results, takes 2-3 min...')
+  trend_dat <- osf_retrieve_file('kcr2e') %>% osf_download('data/derived-data/trend_dat.rda')
+  message('Loading the data downloaded from osf.io...')
   trend_dat <- readRDS('data/derived-data/trend_dat.rda')
   writeLines(paste0('trend_dat.rda downloded from https://osf.io/kcr2e/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
-  message("Done.")
+  message('Done.')
   } 
 }
 ```
@@ -259,11 +257,11 @@ trend_dat <- response_levels %>%
          trends = map(mod, extract_trends))
 
 # save to disk
-saveRDS(trend_dat, 
-        file = "data/derived-data/trend_dat.rda")
+saveRDS(trend_dat, file = 'data/derived-data/trend_dat.rda')
 
 # write a note to indicate the provenance of this file
 this_commit <-  git2r::revparse_single(git2r::repository('.'), "HEAD")
+
 writeLines(paste0('trend_dat generated on ',
                    Sys.Date() , ' from archaeoglobe.Rmd at git commit ',
                     this_commit$sha, ' made by ',
@@ -272,7 +270,7 @@ writeLines(paste0('trend_dat generated on ',
                     this_commit$summary, "'"),
            con = 'data/derived-data/README.md', 
            sep = '')
-message("Done.")
+message('Done.')
 ```
 
 ```{r eval = FALSE, echo = FALSE}
@@ -280,16 +278,16 @@ message("Done.")
 # upload to osf.io, this needs to be done manually because we need to 
 # authenticate and don't want to put our PAT in the Rmd
 
-osf_auth("my-PAT-for-OSF") # Navigate to https://osf.io/settings/tokens/
+osf_auth('my-PAT-for-OSF') # Navigate to https://osf.io/settings/tokens/
 
 # upload the model data
-osf_retrieve_node("gcfs6") %>% 
-  osf_upload(path = "data/derived-data/trend_dat.rda", 
+osf_retrieve_node('gcfs6') %>% 
+  osf_upload(path = 'data/derived-data/trend_dat.rda', 
              overwrite = TRUE)
 
 # upload the README
-osf_retrieve_node("gcfs6") %>% 
-  osf_upload(path = "data/derived-data/README.md", 
+osf_retrieve_node('gcfs6') %>% 
+  osf_upload(path = 'data/derived-data/README.md', 
              overwrite = TRUE)
 ```
 
@@ -307,7 +305,7 @@ The global trend in data quality is more or less the same as the expertise data,
 
 ## Global Trends
 
-```{r echo = FALSE, fig.width = 6.5, fig.height = 6}
+```{r echo = FALSE, fig.width = 4.5, fig.height = 6}
 global_trends <- trend_dat %>%
   select(prefix, mod) %>%
   mutate(trends = map(mod, ~plot.gam(., select = 0)[1]),
@@ -316,13 +314,13 @@ global_trends <- trend_dat %>%
   select(-mod) %>%
   unnest %>%
   mutate(type = recode_factor(prefix,
-          'EXAG' = 'Extensive Agriculture',
-         'INAG' = 'Intensive Agriculture',
-         'PAST' = 'Pastoralism',
-          'HUNT' = 'Foraging',
-         'URBN' = 'Urban',
-         'EXP' = 'Expertise',
-         'DQ' = 'Data Quality'),
+                              'EXAG' = 'Extensive Agriculture',
+                              'INAG' = 'Intensive Agriculture',
+                              'PAST' = 'Pastoralism',
+                              'HUNT' = 'Foraging',
+                              'URBN' = 'Urban',
+                              'EXP' = 'Expertise',
+                              'DQ' = 'Data Quality'),
          time = time / 1000,
          lower =  plogis(fit - 2 * se),
          upper = plogis(fit + 2 * se),
@@ -333,12 +331,13 @@ g1 <- global_trends %>%
 ggplot(aes(time, fit, group = type)) +
   geom_line(aes(color = type), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
-  scale_color_viridis_d(name = 'Land Use') +
-  scale_fill_viridis_d(name = 'Land Use') +
+  scale_color_viridis_d(guide = FALSE) +
+  scale_fill_viridis_d(guide = FALSE) +
   scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
   scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-  labs(title = 'A', x = 'Thousand years BP', y = 'Land-use extent\n') +
+  labs(x = 'Thousand years BP', y = 'Land-use extent\n') +
   theme_bw() +
+    theme(strip.background = element_blank()) +
   facet_wrap(~type)
 
 g2 <- global_trends %>%
