@@ -631,4 +631,59 @@ trend_dat[1, ] %>%
 ggsave('figures/trends_exp.png', height = 8, width = 12)
 ```
 
+## Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
 
+We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a  Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
+
+```{r}
+consensus_cat <- 
+  consensus %>% 
+  # convert consensus variables to ordinal factors
+  mutate_at(.vars = vars(FHG_10KBP:URBAN_1850CE), 
+            .funs = funs(case_when(. == "Widespread" ~ 3, 
+                                   . == "Common" ~ 2,  
+                                   . == "Minimal" ~  1, 
+                                   . == "None" ~ 0))) %>% 
+  mutate_at(.vars = vars(FHG_10KBP:URBAN_1850CE), 
+            .funs = funs(factor(., ordered = TRUE)))
+
+mod.sem1 <- '
+# latent variable definitions
+hunt  =~ FHG_6KBP + FHG_4KBP + FHG_3KBP
+past  =~ PAS_6KBP + PAS_4KBP + PAS_3KBP
+crop  =~ INAG_6KBP + INAG_4KBP + INAG_3KBP
+# regressions
+past ~ hunt
+crop ~ hunt
+# residual correlations
+FHG_6KBP ~~ PAS_6KBP + INAG_6KBP
+FHG_4KBP ~~ PAS_4KBP + INAG_4KBP
+FHG_3KBP ~~ PAS_3KBP + INAG_3KBP
+'
+
+library(lavaan)
+sem.fit <- sem(mod.sem1, 
+               data = consensus_cat[,-c(1:2)])
+# inspect the summary
+summary(sem.fit,
+        fit.measures=TRUE, 
+        standardized = TRUE)
+
+modificationindices(sem.fit, sort = TRUE)
+
+# look at the diagram:
+library(lavaanPlot)
+lavaanPlot(name="", 
+           model=sem.fit, 
+           coefs=TRUE, 
+           covs=TRUE, 
+           sig=1.00)
+```
+
+Structural equation modelling shows that a causal inference of abandonment of widespread foraging correlating more closely with the spread of pastoralism than crop agriculture is consistent with the data.
+
+Bollen, K. A. (1989). Structural Equations with Latent Variables (Wiley Series in Probability and Statistics, Canada
+
+Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. Routledge.
+
+Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
