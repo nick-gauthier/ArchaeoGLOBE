@@ -1,6 +1,6 @@
 ---
 title: "ArchaeoGLOBE trend analysis"
-author: "Nick Gauthier"
+author: "Nick Gauthier and Ben Marwick"
 date: "Last knit on: `r format(Sys.time(), '%d %B, %Y')`"
 output: 
   pdf_document: 
@@ -17,13 +17,14 @@ knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE, 
                       cache = FALSE)
 ```
-Sample analysis code for the ArchaeoGlobe database. Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
+
+Analysis code for the ArchaeoGlobe database. Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
 
 We model ordered categorical data using a latent variable following a logistic distribution. The model identifies a series of cut points, which correspond the the probabilities of the latent variable falling within each of our categories.
 
 We fit two sets of trends. One trend is fitted to all the data simultaneously, representing the global trend across all archaeological regions. Then we fit region-level trends, which represent the deviation of each region from the global trend. By penalizing the "wiggliness" of the trend lines, we allow regional trends that don't significantly deviate from the global trend to be penalized to 0, effectively reducing that particular region to the global trend. This is a form of partial pooling, allowing the model to share information between groups and in so doing make the results less sensitive to regions with exceptionally low response rates.
 
-After fitting the model, we can extract the region-specific deviations from the global trend, use a k-means clustering algorithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
+After fitting the model, we can extract the region-specific trends, use a k-means clustering algorithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
 
 # Setup
 
@@ -43,38 +44,42 @@ library(patchwork)
 
 ## Data import
 
-Read in the latest version of the ArchaeoGLOBE database and the regions' shapefile from the Dataverse repository.
+Read in the latest version of the ArchaeoGLOBE database and the consensus assessment from the Dataverse repository.
 
-```{r dataverse-database, echo=T}
+```{r dataverse-database, echo = TRUE}
 Sys.setenv('DATAVERSE_SERVER' = 'dataverse.harvard.edu')
 
 # get data frame of files on dataverse
-ArchaeoGLOBE_Public_Data_DOI <- 'doi:10.7910/DVN/CNCANQ'
-ArchaeoGLOBE_Public_Data_df <- get_dataset(ArchaeoGLOBE_Public_Data_DOI)
+ArchaeoGLOBE_Data_DOI <- 'doi:10.7910/DVN/CNCANQ'
+ArchaeoGLOBE_Data_df <- get_dataset(ArchaeoGLOBE_Data_DOI)
 
 # Only download the file we need here
-ArchaeoGLOBE_Public_Data_df_files <- 
-  ArchaeoGLOBE_Public_Data_df$files[grepl('ARCHAEOGLOBE_PUBLIC_DATA|ARCHAEOGLOBE_CONSENSUS_ASSESSMENT', 
-                                          ArchaeoGLOBE_Public_Data_df$files$filename), ]
+ArchaeoGLOBE_Data_df_files <- ArchaeoGLOBE_Data_df$files[
+  grepl('ARCHAEOGLOBE_PUBLIC_DATA|ARCHAEOGLOBE_CONSENSUS_ASSESSMENT', 
+        ArchaeoGLOBE_Data_df$files$filename), ]
+
 # read into local dir
-walk(ArchaeoGLOBE_Public_Data_df_files$label,
-     ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
+walk(ArchaeoGLOBE_Data_df_files$label,
+     ~get_file(.x, ArchaeoGLOBE_Data_DOI) %>% 
        writeBin(paste0('data/raw-data/', .x)))
+
 # read into the current environment
 archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
 consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 ```
 
-```{r dataverse-shapefile, echo=T, eval = F}
+Repeat for the archaeological regions shapefile.
+
+```{r dataverse-shapefile, echo = TRUE, eval = FALSE}
 # repeat for shapefile
-ArchaeoGLOBE_Regions_DOI <-  'doi:10.7910/DVN/CQWUBI'
+ArchaeoGLOBE_Regions_DOI <- 'doi:10.7910/DVN/CQWUBI'
 
 # get data frame of files on DV
-ArchaeoGLOBE_Regions_df <- 
-  get_dataset(ArchaeoGLOBE_Regions_DOI) 
+ArchaeoGLOBE_Regions_df <- get_dataset(ArchaeoGLOBE_Regions_DOI) 
 
 # just download the shapefile we want
-ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
+ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[
+  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
 
 # read into local dir
 walk(ArchaeoGLOBE_Regions_df_files$label,
@@ -92,7 +97,7 @@ regions <- st_read('data/raw-data/ArchaeGLOBE_Regions/ArchaeGLOBE_Regions.shp',
 
 ```{r}
 # temporary workaround
-regions <- st_read('../Simplified_Regions2/Simplified_Regions2.shp')
+regions <- st_read('../Simplified_Regions2/Simplified_Regions2.shp', quiet = TRUE) %>%
 ```
 
 
@@ -129,43 +134,41 @@ a + b + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = '
 ggsave('figures/response_distribution.png', width = 6.5, height = 5.5)
 ```
 
+How many published archaeolgical excavations are estimated for each region?
+
 ```{r}
-inag_onset <- consensus %>%
-  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
-  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
-  filter(value %in% c('Common', 'Widespread')) %>%
-  mutate(time = parse_number(time),
-         time = case_when(time == 1500 ~ .5,
-                          time == 1750 ~ .25,
-                          time == 1850 ~ .15,
-                          time <= 10 ~ time),
-         time = time * -1) %>%
-  group_by(Region, value) %>%
-  summarise(onset = min(time)) %>%
-  spread(value, onset) %>%
-  mutate(Common = if_else(is.na(Common), Widespread, Common))
-  
-inag_onset %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+# a function for calculating the mode, from https://stackoverflow.com/a/46846474
+calculate_mode <- function(x) {
+  uniqx <- unique(x)
+  uniqx[which.max(tabulate(match(x, uniqx)))]
+}
+
+# use this vector to order the RN_SITES variable by increasing number of sites
+site_order <- c('< 50', '50-249', '250-499', '500-999', '> 1000')
+
+# find the modal response for the number of published excavations in each region
+site_counts <- archaeoglobe %>%
+  select(REGION_ID, RN_SITES) %>%
+  group_by(REGION_ID) %>%
+  summarise(sites = calculate_mode(RN_SITES)) %>%
+  mutate(sites = ordered(sites, levels = site_order))
+```
+
+```{r echo = FALSE}
+sites_plot <- regions %>%
+  left_join(site_counts, by = c('Archaeo_ID' = 'REGION_ID')) %>%
   mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
   ggplot() +
-  geom_sf(aes(fill = Common), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Onset', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf(aes(fill = sites), size = .3, color = 'white') +
+  scale_fill_viridis_d(name = 'Published Excavations', guide = 'legend') +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   theme_void() +
   theme(legend.position='bottom')
 
-inag_onset %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
-  ggplot() +
-  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Onset (Thousand years BP)', guide = 'colorbar', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  theme_void() 
+sites_plot
 ```
+
 
 
 ## Analysis functions
@@ -783,6 +786,42 @@ ggsave('figures/trends_quality.png', height = 8, width = 12)
 ```{r}
 readxl::read_excel('../hyde_compare_2018_10_26.xlsx')
 
-con
 ```
 
+```{r}
+inag_onset <- consensus %>%
+  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
+  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
+  filter(value %in% c('Common', 'Widespread')) %>%
+  mutate(time = parse_number(time),
+         time = case_when(time == 1500 ~ .5,
+                          time == 1750 ~ .25,
+                          time == 1850 ~ .15,
+                          time <= 10 ~ time),
+         time = time * -1) %>%
+  group_by(Region, value) %>%
+  summarise(onset = min(time)) %>%
+  spread(value, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common))
+  
+inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
+  ggplot() +
+  geom_sf(aes(fill = Common), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Onset', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position='bottom')
+
+inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
+  ggplot() +
+  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Onset (Thousand years BP)', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() 
+```
