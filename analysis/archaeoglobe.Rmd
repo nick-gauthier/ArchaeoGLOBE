@@ -129,6 +129,44 @@ a + b + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = '
 ggsave('figures/response_distribution.png', width = 6.5, height = 5.5)
 ```
 
+```{r}
+inag_onset <- consensus %>%
+  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
+  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
+  filter(value %in% c('Common', 'Widespread')) %>%
+  mutate(time = parse_number(time),
+         time = case_when(time == 1500 ~ .5,
+                          time == 1750 ~ .25,
+                          time == 1850 ~ .15,
+                          time <= 10 ~ time),
+         time = time * -1) %>%
+  group_by(Region, value) %>%
+  summarise(onset = min(time)) %>%
+  spread(value, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common))
+  
+inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
+  ggplot() +
+  geom_sf(aes(fill = Common), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Onset', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position='bottom')
+
+inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
+  ggplot() +
+  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Onset (Thousand years BP)', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() 
+```
+
 
 ## Analysis functions
 
