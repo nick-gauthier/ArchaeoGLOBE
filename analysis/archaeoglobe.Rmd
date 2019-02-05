@@ -344,6 +344,28 @@ The global trend in data quality is more or less the same as the expertise data,
 ## Global Trends
 
 ```{r echo = FALSE, fig.width = 4.5, fig.height = 6}
+cutpoints_dat <- trend_dat %>%
+  select(prefix, mod) %>%
+  mutate(cutpoints = map(mod, ~.$family$getTheta(TRUE))) %>%
+  select(-mod) %>%
+  mutate(type = recode_factor(prefix,
+                              'EXAG' = 'Extensive Agriculture',
+                              'INAG' = 'Intensive Agriculture',
+                              'PAST' = 'Pastoralism',
+                              'HUNT' = 'Foraging',
+                              'URBN' = 'Urban',
+                              'EXP' = 'Expertise',
+                              'DQ' = 'Data Quality')) %>%
+  filter(prefix %in% c('HUNT','PAST','EXAG','INAG')) %>%
+    mutate(
+        cutpoints = map_chr(cutpoints, paste, collapse = ",")
+    ) %>% 
+    tidyr::separate(
+        cutpoints, 
+        c('Minimal', 'Common', 'Widespread'),
+        ",", convert = TRUE
+    )
+
 global_trends <- trend_dat %>%
   select(prefix, mod) %>%
   mutate(trends = map(mod, ~plot.gam(., select = 0)[1]),
@@ -367,6 +389,9 @@ global_trends <- trend_dat %>%
 g1 <- global_trends %>%
   filter(prefix %in% c('HUNT','PAST','EXAG','INAG')) %>%
 ggplot(aes(time, fit, group = type)) +
+  geom_hline(data = cutpoints_dat, aes(yintercept = plogis(Minimal)), linetype = 2, alpha = .5) +
+    geom_hline(data = cutpoints_dat, aes(yintercept = plogis(Common)), linetype = 2, alpha = .5) +
+    geom_hline(data = cutpoints_dat, aes(yintercept = plogis(Widespread)), linetype = 2, alpha = .5) +
   geom_line(aes(color = type), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
   scale_color_viridis_d(guide = FALSE) +
@@ -377,6 +402,8 @@ ggplot(aes(time, fit, group = type)) +
   theme_bw() +
     theme(strip.background = element_blank()) +
   facet_wrap(~type)
+
+
 
 g2 <- global_trends %>%
   filter(prefix %in% c('EXP', 'DQ')) %>%
@@ -397,6 +424,95 @@ g1 + g2 + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels =
 ggsave('figures/global_trends.png', height = 6, width = 6.5)
 ```
 
+```{r, fig.width = 6, fig.height = 4}
+global_trends %>%
+  filter(prefix %in% c('HUNT','PAST','EXAG','INAG')) %>%
+ggplot(aes(time, fit, group = type)) +
+  geom_hline(data = cutpoints_dat, aes(yintercept = plogis(Minimal)), linetype = 2, alpha = .5) +
+    geom_hline(data = cutpoints_dat, aes(yintercept = plogis(Common)), linetype = 2, alpha = .5) +
+    geom_hline(data = cutpoints_dat, aes(yintercept = plogis(Widespread)), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
+  scale_color_viridis_d(guide = FALSE) +
+  scale_fill_viridis_d(guide = FALSE) +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = 'Land-use extent\n') +
+  theme_bw() +
+    theme(strip.background = element_blank()) +
+   geom_text(data = cutpoints_dat, aes(-8,plogis(Minimal),label = 'Minimal', vjust = -1)) +
+     geom_text(data = cutpoints_dat, aes(-8,plogis(Common),label = 'Common', vjust = -1)) +
+   geom_text(data = cutpoints_dat, aes(-8,plogis(Widespread),label = 'Widespread', vjust = -1)) +
+
+  facet_wrap(~type)
+
+cutpoints_dat <- trend_dat %>%
+  select(prefix, mod) %>%
+  mutate(cutpoints = map(mod, ~.$family$getTheta(TRUE))) %>%
+  select(-mod)
+
+
+c1 <- global_trends %>%
+  filter(prefix == 'EXAG') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0,plogis(cutpoints_dat[[4,2]])), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#377eb8') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#377eb8') +
+  scale_color_viridis_d(guide = FALSE) +
+  scale_fill_viridis_d(guide = FALSE) +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,plogis(cutpoints_dat[[4,2]])), minor_breaks = NULL, labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = '', y = 'Land-use extent\n') +
+      theme(strip.background = element_blank()) +
+  theme_bw() +
+  facet_wrap(~type)
+
+c2 <- global_trends %>%
+  filter(prefix == 'INAG') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0,plogis(cutpoints_dat[[5,2]])), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#4daf4a') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#4daf4a') +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,plogis(cutpoints_dat[[5,2]])), minor_breaks = NULL, labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = '', y = '') +
+      theme(strip.background = element_blank()) +
+  theme_bw() +
+  facet_wrap(~type)
+
+c3 <- global_trends %>%
+  filter(prefix == 'PAST') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0,plogis(cutpoints_dat[[6,2]])), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#e41a1c') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#e41a1c') +
+  scale_color_viridis_d(guide = FALSE) +
+  scale_fill_viridis_d(guide = FALSE) +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,plogis(cutpoints_dat[[6,2]])), minor_breaks = NULL, labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = 'Land-use extent\n') +
+      theme(strip.background = element_blank()) +
+  theme_bw() +
+  facet_wrap(~type)
+
+c4 <- global_trends %>%
+  filter(prefix == 'HUNT') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0,plogis(cutpoints_dat[[3,2]])), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#ff7f00') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#ff7f00') +
+  scale_color_viridis_d(guide = FALSE) +
+  scale_fill_viridis_d(guide = FALSE) +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,plogis(cutpoints_dat[[3,2]])), minor_breaks = NULL, labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = '') +
+      theme(strip.background = element_blank()) +
+  theme_bw() +
+  facet_wrap(~type)
+
+
+c1 + c2 + c3 + c4
+```
 
 ```{r}
 cumsum_landuse_regions <- consensus %>% 
@@ -660,3 +776,13 @@ trend_dat[2, ] %>%
 
 ggsave('figures/trends_quality.png', height = 8, width = 12)
 ```
+
+
+## HYDE Comparison
+
+```{r}
+readxl::read_excel('../hyde_compare_2018_10_26.xlsx')
+
+con
+```
+
