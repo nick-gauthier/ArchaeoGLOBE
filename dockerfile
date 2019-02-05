@@ -19,7 +19,7 @@ RUN . /etc/environment \
   && sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
 
   # build this compendium package
-  && sudo R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
+  && sudo R -e "devtools::install('/archaeoglobe', dep=TRUE); webshot::install_phantomjs()" \
   
   # make project directory writable to save images and other output
   && sudo chmod a+rwx -R archaeoglobe \
