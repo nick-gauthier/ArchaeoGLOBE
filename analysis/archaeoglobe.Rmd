@@ -133,7 +133,7 @@ b <- ggplot(response_counts, aes(n, group = n)) +
   labs(x = 'Contributors', y = 'Regions')
 
 a + b + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = 'A')
-ggsave('figures/response_distribution.png', width = 6.5, height = 5.5)
+ggsave('figures/1_response_distribution.png', width = 6.5, height = 5.5)
 ```
 
 How many published archaeolgical excavations are estimated for each region?
@@ -546,7 +546,7 @@ cs1 / cs2 + plot_annotation(tag_levels = 'A')
 ```{r, fig.height = 7.5, fig.width = 6}
 (g1 + theme_minimal()) / cs1 + plot_annotation(tag_levels = 'A')
 
-ggsave('figures/global_trends.png', height = 7.5, width = 6.5)
+ggsave('figures/3_trends_global.png', height = 7.5, width = 6.5)
 ```
 
 
@@ -654,7 +654,7 @@ r4 <- trend_dat[3, ] %>%
 
 (r1 | r2 ) / (r3 | r4)
 
-ggsave('figures/trends_map_landuse.png', height = 8, width = 12)
+ggsave('figures/4_trends_map_landuse.png', height = 8, width = 12)
 ```
 
 
@@ -690,7 +690,7 @@ ggplot(aes(time, fit, group = type)) +
 
 (g2 + sites_plot + labs(tag = 'B')) / (k1 | k2) + plot_layout(heights = c(1, 2))
 
-ggsave('figures/trends_map_knowledge.png', height = 8, width = 12)
+ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
 ```
 
 ```{r}
