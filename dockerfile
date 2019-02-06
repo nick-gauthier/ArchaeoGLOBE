@@ -13,9 +13,9 @@ RUN . /etc/environment \
   # Install linux depedendencies here
   # e.g. need this for ggforce::geom_sina
   && sudo apt-get update \
-  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xvfb xorg-dev  mesa-common-dev libglu1-mesa-dev freeglut3-dev  xorg-dev libcgal-dev libx11-dev libftgl2 libjq-dev libprotobuf-dev protobuf-compiler  -y \
-  && sudo curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash - \
-  && sudo apt-get install nodejs -y \
+  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xvfb xorg-dev  mesa-common-dev libglu1-mesa-dev freeglut3-dev  xorg-dev libcgal-dev libx11-dev libftgl2 libjq-dev libprotobuf-dev protobuf-compiler  curl -y \
+  && curl -sL https://deb.nodesource.com/setup_11.x | sudo -E bash - \
+  && sudo apt-get install -y nodejs \
   && sudo npm -g phantomjs-prebuilt -y \
   
   # install GitHub-only depedendencies
