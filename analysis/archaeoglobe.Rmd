@@ -669,16 +669,14 @@ summary(sem.fit,
         fit.measures=TRUE, 
         standardized = TRUE)
 
-modificationindices(sem.fit, sort = TRUE)
+# modificationindices(sem.fit, sort = TRUE)
 
 # look at the diagram:
-library(lavaanPlot)
-lavaanPlot(name="", 
-           model=sem.fit, 
-           coefs=TRUE, 
-           covs=TRUE, 
-           sig=1.00) 
+png("figures/lavaan.diagram.png")
+psych::lavaan.diagram(sem.fit)
+dev.off()
 
+knitr::include_graphics("figures/lavaan.diagram.png")
 
 ```
 
