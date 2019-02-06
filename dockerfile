@@ -13,14 +13,13 @@ RUN . /etc/environment \
   # Install linux depedendencies here
   # e.g. need this for ggforce::geom_sina
   && sudo apt-get update \
-  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xvfb xorg-dev  mesa-common-dev libglu1-mesa-dev freeglut3-dev  xorg-dev libcgal-dev libx11-dev libftgl2 libjq-dev libprotobuf-dev protobuf-compiler  curl gnupg  gnupg2 gnupg1 -y \
+  && sudo apt-get install libudunits2-dev libgdal-dev gdal-bin libproj-dev proj-data proj-bin libgeos-dev xvfb xorg-dev  mesa-common-dev libglu1-mesa-dev freeglut3-dev  xorg-dev libcgal-dev libx11-dev libftgl2 libjq-dev libprotobuf-dev protobuf-compiler  curl gnupg  gnupg2 gnupg1 bzip2 nodejs -y \
   && curl -sL https://deb.nodesource.com/setup_11.x | sudo -E bash - 
   
-RUN sudo apt-get install -y nodejs \
-  && sudo npm -g phantomjs-prebuilt \
+RUN sudo npm install -g phantomjs-prebuilt 
   
   # install GitHub-only depedendencies
-  && sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
+RUN sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
 
   # build this compendium package
   && sudo R -e "devtools::install('/archaeoglobe', dep=TRUE)" \
