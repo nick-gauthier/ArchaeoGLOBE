@@ -20,6 +20,8 @@ Imports:
     tidyverse,
     dataverse,
     git2r, 
-    rmapshaper
+    rmapshaper,
+    lavaan,
+    lavaanPlot
 Remotes: thomasp85/patchwork, centerforopenscience/osfr
 RoxygenNote: 6.1.1

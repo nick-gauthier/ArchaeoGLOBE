@@ -247,9 +247,9 @@ Now we use the functions defined above to estimate trends in ArchaeoGlobe data. 
 ```{r}
 response_levels <- tribble(
   ~prefix, ~categories,
-  'EXP', c('None', 'Low', 'High'),
-  'DQ', c('Unknown', 'Low', 'Moderate', 'Good'),
-  'HUNT', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
+  'EXP', c('None', 'Low', 'High'),                  # Expertise
+  'DQ', c('Unknown', 'Low', 'Moderate', 'Good'),    # Data Quality
+  'HUNT', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'), 
   'EXAG', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
   'INAG', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
   'PAST', c('none', 'minimal (<1%)', 'common (1-20%)', 'widespread (>20%)'),
@@ -742,3 +742,56 @@ inag_onset %>%
   coord_sf(datum = NA) +
   theme_void() 
 ```
+
+```{r}
+consensus_cat <- 
+  consensus %>% 
+  # convert consensus variables to ordinal factors
+  mutate_at(.vars = vars(FHG_10KBP:URBAN_1850CE), 
+            .funs = funs(case_when(. == "Widespread" ~ 3, 
+                                   . == "Common" ~ 2,  
+                                   . == "Minimal" ~  1, 
+                                   . == "None" ~ 0))) %>% 
+  mutate_at(.vars = vars(FHG_10KBP:URBAN_1850CE), 
+            .funs = funs(factor(., ordered = TRUE)))
+
+mod.sem1 <- '
+# latent variable definitions
+hunt  =~ FHG_6KBP + FHG_4KBP + FHG_3KBP
+past  =~ PAS_6KBP + PAS_4KBP + PAS_3KBP
+crop  =~ INAG_6KBP + INAG_4KBP + INAG_3KBP
+# regressions
+past ~ hunt
+crop ~ hunt
+# residual correlations
+FHG_6KBP ~~ PAS_6KBP + INAG_6KBP
+FHG_4KBP ~~ PAS_4KBP + INAG_4KBP
+FHG_3KBP ~~ PAS_3KBP + INAG_3KBP
+'
+
+library(lavaan)
+sem.fit <- sem(mod.sem1, 
+               data = consensus_cat[,-c(1:2)])
+# inspect the summary
+summary(sem.fit,
+        fit.measures=TRUE, 
+        standardized = TRUE)
+
+modificationindices(sem.fit, sort = TRUE)
+
+# look at the diagram:
+library(lavaanPlot)
+lavaanPlot(name="", 
+           model=sem.fit, 
+           coefs=TRUE, 
+           covs=TRUE, 
+           sig=1.00)
+```
+
+Structural equation modelling shows that a causal inference of abandonment of widespread foraging correlating more closely with the spread of pastoralism than crop agriculture is consistent with the data.
+
+Bollen, K. A. (1989). Structural Equations with Latent Variables (Wiley Series in Probability and Statistics, Canada
+
+Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. Routledge.
+
+Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
