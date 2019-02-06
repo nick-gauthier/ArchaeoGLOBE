@@ -1,5 +1,5 @@
 ---
-title: "ArchaeoGLOBE trend analysis"
+title: "ArchaeoGLOBE Analysis"
 author: "Nick Gauthier and Ben Marwick"
 date: "Last knit on: `r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -72,7 +72,7 @@ consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 
 Repeat for the archaeological regions shapefile.
 
-```{r dataverse-shapefile, echo = TRUE, eval = FALSE}
+```{r dataverse-shapefile, echo = TRUE}
 # repeat for shapefile
 ArchaeoGLOBE_Regions_DOI <- 'doi:10.7910/DVN/CQWUBI'
 
@@ -81,27 +81,21 @@ ArchaeoGLOBE_Regions_df <- get_dataset(ArchaeoGLOBE_Regions_DOI)
 
 # just download the shapefile we want
 ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[
-  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
+  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeoGLOBE_Simplified_Regions.zip', ]
 
 # read into local dir
 walk(ArchaeoGLOBE_Regions_df_files$label,
     ~get_file(.x, ArchaeoGLOBE_Regions_DOI) %>% 
       writeBin(paste0('data/raw-data/', .x)))
 
-unzip('data/raw-data/ArchaeGLOBE_Regions.zip', 
+unzip('data/raw-data/ArchaeoGLOBE_Simplified_Regions.zip', 
       overwrite = TRUE,
-      exdir = 'data/raw-data/ArchaeGLOBE_Regions')
+      exdir = 'data/raw-data/ArchaeoGLOBE_Simplified_Regions')
 
 # read into the current environment, and simplify the polygons for faster plotting
-regions <- st_read('data/raw-data/ArchaeGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
+regions <- st_read('data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp', 
           quiet = TRUE)
 ```
-
-```{r}
-# temporary workaround
-regions <- st_read('../Simplified_Regions2/Simplified_Regions2.shp', quiet = TRUE)
-```
-
 
 ## Exploratory plots
 
@@ -164,10 +158,10 @@ sites_plot <- regions %>%
   geom_sf(aes(fill = sites), size = .3, color = 'white') +
   scale_fill_viridis_d(name = '', guide = 'legend') +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
-  labs(subtitle = 'Published excavations') +
+  labs(subtitle = '         Published Excavations') +
   coord_sf(datum = NA) +
   theme_void() +
-  theme(legend.position='bottom')
+  theme(legend.position = 'bottom')
 
 sites_plot
 ```
@@ -613,8 +607,8 @@ plot_trends_knowledge <- function(x, variable, tag){
     scale_x_continuous(breaks = c(-8,-6,-4,-2), minor_breaks = NULL) +
     scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High')) +
     facet_wrap(~cluster, nrow = 1, 
-               labeller = labeller(cluster = c(`1` = 'Earlier', `2` = '', `3` = '', `4` = '', `5` = '', `6` = 'Later'))) +
-    labs(x = 'Thousand years BP', y = 'Extent') +
+               labeller = labeller(cluster = c(`1` = 'Later', `2` = '', `3` = '', `4` = '', `5` = '', `6` = 'Earlier'))) +
+    labs(x = 'Thousand years BP', y = '') +
     theme_minimal() +
     theme(strip.background = element_blank())
   
@@ -664,16 +658,14 @@ k1 <- trend_dat[1, ] %>%
                       ~mutate(., cluster = recode_factor(cluster, 
                                  `1` = '1', `2` = '2',`3` = '3', 
                                  `5` = '4', `4` = '5', `6` = '6')))) %>%
-  plot_trends_knowledge('Expertise', tag = 'C') + 
-  labs( y = 'Expertise')
+  plot_trends_knowledge('Expertise', tag = 'A')
 
 k2 <- trend_dat[2, ] %>%
   mutate(trends = map(trends, ~mutate(., 
                                   cluster = recode_factor(cluster, 
                                  `3` = '1', `2` = '2',`6` = '3', 
                                  `1` = '4', `5` = '5', `4` = '6')))) %>%
-  plot_trends_knowledge('Data Quality', tag = 'D') + 
-  labs(y = 'Quality')
+  plot_trends_knowledge('Data Quality', tag = 'B')
 
 g2 <- global_trends %>%
   filter(prefix %in% c('EXP', 'DQ')) %>%
@@ -682,13 +674,12 @@ ggplot(aes(time, fit, group = type)) +
   geom_line(aes(color = type), size = 1.2, color = 'black') +
   scale_x_continuous(breaks = c(-10,-8,-6,-4,-2,0), minor_breaks = NULL) +
   scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High'), limits = c(0,1)) +
-  labs(x = 'Thousand years BP', y = 'Archaeological \nknowledge', tag = 'A') +
+  labs(x = 'Thousand years BP', y = 'Archaeological \nknowledge', tag = 'C') +
   theme_minimal() +
   theme(strip.background = element_blank()) +
   facet_wrap(~type, nrow = 1)
 
-
-(g2 + sites_plot + labs(tag = 'B')) / (k1 | k2) + plot_layout(heights = c(1, 2))
+(k1 | k2) / (g2 + sites_plot + labs(tag = 'D') + plot_layout(widths = c(.9, 1))) + plot_layout(heights = c(1, .7))
 
 ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
 ```
@@ -742,6 +733,10 @@ inag_onset %>%
   coord_sf(datum = NA) +
   theme_void() 
 ```
+
+## Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
+
+We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a  Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
 
 ```{r}
 consensus_cat <- 
