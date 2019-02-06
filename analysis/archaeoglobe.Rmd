@@ -677,7 +677,9 @@ lavaanPlot(name="",
            model=sem.fit, 
            coefs=TRUE, 
            covs=TRUE, 
-           sig=1.00)
+           sig=1.00) 
+
+
 ```
 
 Structural equation modelling shows that a causal inference of abandonment of widespread foraging correlating more closely with the spread of pastoralism than crop agriculture is consistent with the data.

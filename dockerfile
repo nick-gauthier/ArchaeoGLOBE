@@ -17,7 +17,7 @@ RUN . /etc/environment \
   && curl -sL https://deb.nodesource.com/setup_11.x | sudo -E bash - 
   
 RUN sudo apt-get install -y nodejs \
-  && sudo npm -g phantomjs-prebuilt -y \
+  && sudo npm -g phantomjs-prebuilt \
   
   # install GitHub-only depedendencies
   && sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
