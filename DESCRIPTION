@@ -22,6 +22,6 @@ Imports:
     git2r, 
     rmapshaper,
     lavaan,
-    lavaanPlot
+    psych
 Remotes: thomasp85/patchwork, centerforopenscience/osfr
 RoxygenNote: 6.1.1
