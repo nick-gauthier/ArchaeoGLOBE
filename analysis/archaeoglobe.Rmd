@@ -649,9 +649,9 @@ consensus_cat <-
 
 mod.sem1 <- '
 # latent variable definitions
-hunt  =~ FHG_6KBP + FHG_4KBP + FHG_3KBP
-past  =~ PAS_6KBP + PAS_4KBP + PAS_3KBP
-crop  =~ INAG_6KBP + INAG_4KBP + INAG_3KBP
+hunt  =~ 0 * FHG_6KBP  + 1 *  FHG_4KBP  + 2 * FHG_3KBP
+past  =~ 0 * PAS_6KBP  + 1 * PAS_4KBP   + 2 * PAS_3KBP
+crop  =~ 0 * INAG_6KBP + 1 * INAG_4KBP  + 2 * INAG_3KBP
 # regressions
 past ~ hunt
 crop ~ hunt
@@ -660,6 +660,7 @@ FHG_6KBP ~~ PAS_6KBP + INAG_6KBP
 FHG_4KBP ~~ PAS_4KBP + INAG_4KBP
 FHG_3KBP ~~ PAS_3KBP + INAG_3KBP
 '
+
 
 library(lavaan)
 sem.fit <- sem(mod.sem1, 
@@ -681,6 +682,70 @@ knitr::include_graphics("figures/lavaan.diagram.png")
 ```
 
 Structural equation modelling shows that a causal inference of abandonment of widespread foraging correlating more closely with the spread of pastoralism than crop agriculture is consistent with the data.
+
+We can also investigate this using an odds ratio approach. We can create a table of counts of regions that show a decline in foraging over time, and counts of regions where pastoralism is more widespread than intensive agriculture at an arbitrary time point, such as 2 k BP. We can then compute an odds ratio for this table, and if the result is greater than one, we can conclude that the outcome of  pastoralism more widespread than crop agriculture after widespread foraging is abandoned is more likely that the alternative outcome.  
+
+```{r}
+# odds ratio approach
+consensus_cat_df <- 
+consensus_cat %>% 
+  # label those regions that show a decline in foraging over time
+  mutate(shows_decline_in_foraging =  as.numeric((FHG_10KBP > FHG_2KBP)) ) %>% 
+  # label those regions that show pastoralism more widespread than crop agriculture
+  mutate(shows_more_pastoralism_than_crop =   as.numeric(PAS_2KBP > INAG_2KBP )) %>% 
+  # check
+  select( shows_decline_in_foraging, 
+          shows_more_pastoralism_than_crop) %>% 
+  group_by(shows_decline_in_foraging, 
+           shows_more_pastoralism_than_crop) %>%
+  tally() %>%
+  spread(shows_more_pastoralism_than_crop, n, fill = 0) %>% 
+  arrange(desc(shows_decline_in_foraging)) %>% 
+  select(shows_decline_in_foraging, `1`, `0`)
+```
+
+```{r}
+# show a table
+consensus_cat_df_show <- consensus_cat_df
+names(consensus_cat_df_show) <- c(" ", 
+                                  "pastoralism more widespread than crops",
+                                  "pastoralism less widespread than crop")
+consensus_cat_df_show$` ` <- c('shows a decline in foraging over time',
+                              'shows no decline in foraging over time')
+knitr::kable(consensus_cat_df_show)
+
+```
+
+
+```{r}
+# get odds ratio and p-value
+tab <- as.matrix(consensus_cat_df[,2:3])
+ft <- fisher.test(tab)
+
+# another way
+d <- data.frame(g=factor(1:2),
+                s=tab[c(1,3)],
+                f=tab[c(2,4)])
+g <- glm(s/(s+f) ~ g, 
+         weights = s + f, 
+         data = d,
+         family="binomial")
+# coef(summary(g))["g2",c("Estimate","Pr(>|z|)")]
+# To get the likelihood ratio test (slightly more accurate 
+# than the Wald 𝑝-value shown above), do
+lrt <- anova(g,test="Chisq")
+p_value <- round(lrt $`Pr(>Chi)`[2], 3)
+
+# odds ratio, check it by hand
+A <- tab[1]
+B <- tab[3]
+C <- tab[2]
+D <- tab[4]
+or <- (A/B) / (C/D)
+```
+
+The odds ratio for this table is `r round(or, 3)`, with a p-value of `r p_value`. This indicates that that claim of pastoralism being more widespread than crop agriculture after widespread foraging is abandoned is supported by the data. 
+
 
 Bollen, K. A. (1989). Structural Equations with Latent Variables (Wiley Series in Probability and Statistics, Canada
 
