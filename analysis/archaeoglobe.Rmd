@@ -94,7 +94,10 @@ unzip('data/raw-data/ArchaeoGLOBE_Simplified_Regions.zip',
 
 # read into the current environment, and simplify the polygons for faster plotting
 regions <- st_read('data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp', 
-          quiet = TRUE)
+          quiet = TRUE) %>%
+  # add labels for just the islands, will make plotting easier in the future
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
+
 ```
 
 ## Exploratory plots
@@ -111,7 +114,6 @@ response_counts <- archaeoglobe %>%
 ```{r, fig.width = 6.5, fig.height = 5.5, echo = FALSE}
 a <- regions %>%
   left_join(response_counts, by = c('Archaeo_ID' = 'REGION_ID')) %>%
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
   ggplot() +
   geom_sf(aes(fill = n10), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Contributors', guide = 'legend', breaks = seq(2, 10, 2), labels = c(seq(2, 8, 2), '10+')) +
@@ -153,12 +155,11 @@ site_counts <- archaeoglobe %>%
 ```{r echo = FALSE}
 sites_plot <- regions %>%
   left_join(site_counts, by = c('Archaeo_ID' = 'REGION_ID')) %>%
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
   ggplot() +
   geom_sf(aes(fill = sites), size = .3, color = 'white') +
   scale_fill_viridis_d(name = '', guide = 'legend') +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
-  labs(subtitle = '         Published Excavations') +
+  labs(subtitle = '         Published Excavations') + # extra spaces move the title to the right a bit, needed for multipanel plot below
   coord_sf(datum = NA) +
   theme_void() +
   theme(legend.position = 'bottom')
@@ -554,7 +555,6 @@ plot_trends_landuse <- function(x, variable, tag){
     group_by(REGION_ID) %>%
     filter(row_number() == 1) %>%
     left_join(regions, ., by = c('Archaeo_ID' = 'REGION_ID')) %>% # join to the region shapes
-    mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
     ggplot() + # plot
     geom_sf(aes(fill = as.factor(cluster)), size = .3, color = 'white') +
     geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
@@ -589,7 +589,6 @@ plot_trends_knowledge <- function(x, variable, tag){
     group_by(REGION_ID) %>%
     filter(row_number() == 1) %>%
     left_join(regions, ., by = c('Archaeo_ID' = 'REGION_ID')) %>% # join to the region shapes
-    mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
     ggplot() + # plot
     geom_sf(aes(fill = as.factor(cluster)), size = .3, color = 'white') +
     geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
@@ -684,59 +683,10 @@ ggplot(aes(time, fit, group = type)) +
 ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
 ```
 
-```{r}
-#temporary stopping point
-knitr::knit_exit()
-```
-
-
-## HYDE Comparison
-
-```{r}
-readxl::read_excel('../hyde_compare_2018_10_26.xlsx')
-```
-
-```{r}
-inag_onset <- consensus %>%
-  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
-  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
-  filter(value %in% c('Common', 'Widespread')) %>%
-  mutate(time = parse_number(time),
-         time = case_when(time == 1500 ~ .5,
-                          time == 1750 ~ .25,
-                          time == 1850 ~ .15,
-                          time <= 10 ~ time),
-         time = time * -1) %>%
-  group_by(Region, value) %>%
-  summarise(onset = min(time)) %>%
-  spread(value, onset) %>%
-  mutate(Common = if_else(is.na(Common), Widespread, Common))
-  
-inag_onset %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
-  ggplot() +
-  geom_sf(aes(fill = Common), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Onset', guide = 'colorbar', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  theme_void() +
-  theme(legend.position='bottom')
-
-inag_onset %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
-  ggplot() +
-  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Onset (Thousand years BP)', guide = 'colorbar', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  theme_void() 
-```
 
 ## Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
 
-We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a  Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
+We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
 
 ```{r}
 consensus_cat <- 
@@ -790,3 +740,106 @@ Bollen, K. A. (1989). Structural Equations with Latent Variables (Wiley Series i
 Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. Routledge.
 
 Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
+
+
+```{r}
+#temporary stopping point
+knitr::knit_exit()
+```
+
+
+## HYDE Comparison
+
+Plot the onset time for intensive agriculture worldwide, based on ArchaeoGLOBE consensus assessments, at the Common and Widespread levels.
+
+```{r, fig.width = 4.5, fig.height = 6.5}
+inag_onset <- consensus %>%
+  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
+  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
+  filter(value %in% c('Common', 'Widespread')) %>%
+  mutate(time = parse_number(time),
+         time = case_when(time == 1500 ~ .5,
+                          time == 1750 ~ .25,
+                          time == 1850 ~ .15,
+                          time <= 10 ~ time),
+         time = time * -1) %>%
+  group_by(Region, value) %>%
+  summarise(onset = min(time)) %>%
+  spread(value, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common))
+  
+on1 <- inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Common), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  labs(subtitle = 'Onset of common (> 1% land area) intensive agriculture') +
+  theme_void() +
+  theme(legend.position='bottom')
+
+on2 <- inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
+  scale_fill_viridis_c(guide = 'none', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  labs(subtitle = 'Onset of widespread (> 20% land area) intensive agriculture') +
+  theme_void() 
+
+(on1 / on2) + plot_annotation(tag_levels = 'A')
+```
+
+Alternative approach, using EE's ag_join .csv file.
+```{r}
+ag_join <- read_csv('../hyde_archaeoglobe_dataset_2018_08_31/Ag_Join.csv') %>%
+  select(-DIFF, -AG_W_InExAg) %>%
+  gather(type, time, 2:5) %>%
+  mutate(time = na_if(time, 'Never'),
+         time = if_else(str_detect(time, 'BP'), parse_number(time) * -0.001, 
+                        (parse_number(time) - 1950) * 0.001)) %>%
+  separate(type, c('source', 'level', NA)) %>%
+  mutate(level = if_else(level == 'CW', 'Common (> 1% land area)', 
+                         'Widespread (> 20% land area)'),
+         source = if_else(source == 'AG', 'ArchaeoGLOBE', source))
+
+ag_join %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = time), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar') +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_grid(source ~ level, switch = 'y') +
+  theme(legend.position = 'bottom', strip.text.y = element_text(angle = -90))
+```
+
+Differences between HYDE and ArchaeoGLOBE onset times.
+```{r}
+onset_difference <- ag_join %>%
+  spread(source, time) %>%
+  mutate(diff = ArchaeoGLOBE - HYDE,
+         diff = round(diff))
+  
+ggplot(onset_difference, aes(diff, group = diff)) +
+  geom_bar(aes(fill = diff)) +
+  scale_fill_distiller(palette = 'PuOr', limits = c(-6,6)) +
+  facet_wrap(~level) +
+  theme_minimal() +
+  labs(x = 'Onset difference (Thousand Years)') +
+  coord_flip()
+
+onset_difference %>%   
+  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = diff), size = .3, color = 'white') +
+  scale_fill_distiller(name = 'Onset', guide = 'colorbar', palette = 'PuOr', direction = 1, limits = c(-6, 6)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_wrap(~ level) +
+  theme(legend.position = 'bottom')
+```
