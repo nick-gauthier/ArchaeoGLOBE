@@ -1,6 +1,6 @@
 ---
-title: "ArchaeoGLOBE trend analysis"
-author: "Nick Gauthier"
+title: "ArchaeoGLOBE Analysis"
+author: "Nick Gauthier and Ben Marwick"
 date: "Last knit on: `r format(Sys.time(), '%d %B, %Y')`"
 output: 
   pdf_document: 
@@ -17,51 +17,52 @@ knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE, 
                       cache = FALSE)
 ```
-Sample analysis code for the ArchaeoGlobe database. Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
+
+Analysis code for the ArchaeoGlobe database. Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
 
 We model ordered categorical data using a latent variable following a logistic distribution. The model identifies a series of cut points, which correspond the the probabilities of the latent variable falling within each of our categories.
 
 We fit two sets of trends. One trend is fitted to all the data simultaneously, representing the global trend across all archaeological regions. Then we fit region-level trends, which represent the deviation of each region from the global trend. By penalizing the "wiggliness" of the trend lines, we allow regional trends that don't significantly deviate from the global trend to be penalized to 0, effectively reducing that particular region to the global trend. This is a form of partial pooling, allowing the model to share information between groups and in so doing make the results less sensitive to regions with exceptionally low response rates.
 
-After fitting the model, we can extract the region-specific deviations from the global trend, use a k-means clustering alogirithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
+After fitting the model, we can extract the region-specific trends, use a k-means clustering algorithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
 
 # Setup
 
-Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` package to help us plot shapefiles in a tidy context. Finally, we'll use `patchwork` to combine multiple ggplots in the same image.
+Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` package to help us plot shapefiles in a tidy context. The `dataverse` and `osfr` packages allows us to pull the raw survey data and precomputed analysis files from their online repositories. Finally, we'll use `patchwork` (installed from GitHub) to combine multiple ggplots in the same image.
 
 ```{r, message = FALSE}
 library(tidyverse)
 library(mgcv)
 library(sf)
 library(ggplot2)
+library(dataverse)
 
-#install patchwork from github 
+#install patchwork  and osfr from github if needed
 #devtools::install_github('thomasp85/patchwork')
 library(patchwork)
+# devtools::install_github('centerforopenscience/osfr')
+library(osfr)
 ```
 
 ## Data import
 
-Read in the latest version of the ArchaeoGLOBE database and the regions' shapefile from the Dataverse repository.
+Read in the latest version of the ArchaeoGLOBE database and the consensus assessment from the Dataverse repository.
 
-```{r dataverse-database, echo=T}
-library("dataverse")
-Sys.setenv("DATAVERSE_SERVER" = "dataverse.harvard.edu")
+```{r dataverse-database, echo = TRUE}
+Sys.setenv('DATAVERSE_SERVER' = 'dataverse.harvard.edu')
 
 # get data frame of files on dataverse
-ArchaeoGLOBE_Public_Data_DOI <- 
-  "doi:10.7910/DVN/CNCANQ"
-ArchaeoGLOBE_Public_Data_df <- 
-  get_dataset(ArchaeoGLOBE_Public_Data_DOI)
+ArchaeoGLOBE_Data_DOI <- 'doi:10.7910/DVN/CNCANQ'
+ArchaeoGLOBE_Data_df <- get_dataset(ArchaeoGLOBE_Data_DOI)
 
 # Only download the file we need here
-ArchaeoGLOBE_Public_Data_df_files <- 
-  ArchaeoGLOBE_Public_Data_df$files[grepl("ARCHAEOGLOBE_PUBLIC_DATA|ARCHAEOGLOBE_CONSENSUS_ASSESSMENT", 
-                                          ArchaeoGLOBE_Public_Data_df$files$filename), ]
+ArchaeoGLOBE_Data_df_files <- ArchaeoGLOBE_Data_df$files[
+  grepl('ARCHAEOGLOBE_PUBLIC_DATA|ARCHAEOGLOBE_CONSENSUS_ASSESSMENT', 
+        ArchaeoGLOBE_Data_df$files$filename), ]
 
 # read into local dir
-walk(ArchaeoGLOBE_Public_Data_df_files$label,
-     ~get_file(.x, ArchaeoGLOBE_Public_Data_DOI) %>% 
+walk(ArchaeoGLOBE_Data_df_files$label,
+     ~get_file(.x, ArchaeoGLOBE_Data_DOI) %>% 
        writeBin(paste0('data/raw-data/', .x)))
 
 # read into the current environment
@@ -69,32 +70,34 @@ archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
 consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 ```
 
-```{r dataverse-shapefile, echo=T}
+Repeat for the archaeological regions shapefile.
+
+```{r dataverse-shapefile, echo = TRUE}
 # repeat for shapefile
-ArchaeoGLOBE_Regions_DOI <-  
-  "doi:10.7910/DVN/CQWUBI"
+ArchaeoGLOBE_Regions_DOI <- 'doi:10.7910/DVN/CQWUBI'
 
 # get data frame of files on DV
-ArchaeoGLOBE_Regions_df <- 
-  get_dataset(ArchaeoGLOBE_Regions_DOI) 
+ArchaeoGLOBE_Regions_df <- get_dataset(ArchaeoGLOBE_Regions_DOI) 
 
 # just download the shapefile we want
-ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
+ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[
+  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeoGLOBE_Simplified_Regions.zip', ]
 
 # read into local dir
 walk(ArchaeoGLOBE_Regions_df_files$label,
     ~get_file(.x, ArchaeoGLOBE_Regions_DOI) %>% 
       writeBin(paste0('data/raw-data/', .x)))
 
-unzip('data/raw-data/ArchaeGLOBE_Regions.zip', 
+unzip('data/raw-data/ArchaeoGLOBE_Simplified_Regions.zip', 
       overwrite = TRUE,
-      exdir = 'data/raw-data/ArchaeGLOBE_Regions')
+      exdir = 'data/raw-data/ArchaeoGLOBE_Simplified_Regions')
 
 # read into the current environment, and simplify the polygons for faster plotting
-regions_unsimplified <- 
-  st_read('data/raw-data/ArchaeGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
-          quiet = TRUE)
-regions <- rmapshaper::ms_simplify(regions_unsimplified)
+regions <- st_read('data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp', 
+          quiet = TRUE) %>%
+  # add labels for just the islands, will make plotting easier in the future
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
+
 ```
 
 ## Exploratory plots
@@ -104,121 +107,65 @@ Before running any analyses, let's look at the data. How many responses do we ha
 ```{r}
 response_counts <- archaeoglobe %>% 
   group_by(REGION_ID) %>%
-  count 
+  count %>%
+  mutate(n10 = replace(n, n > 10, 10))
 ```
 
-```{r, fig.width = 6.5, fig.height = 8, echo = FALSE}
+```{r, fig.width = 6.5, fig.height = 5.5, echo = FALSE}
 a <- regions %>%
   left_join(response_counts, by = c('Archaeo_ID' = 'REGION_ID')) %>%
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
   ggplot() +
-  geom_sf(aes(fill = n), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Count', guide = 'legend') +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
-  labs(title = 'Total responses per region', subtitle = '', x = '', y='') +
-  theme_minimal()
+  geom_sf(aes(fill = n10), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Contributors', guide = 'legend', breaks = seq(2, 10, 2), labels = c(seq(2, 8, 2), '10+')) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position='bottom')
 
-b <- ggplot(response_counts, aes(n)) +
-  geom_bar() +
-  theme_bw() +
-  labs(x = 'Responses per region', y = 'Number of regions')
+b <- ggplot(response_counts, aes(n, group = n)) +
+  geom_bar(aes(fill = n10)) +
+  scale_fill_viridis_c(guide = 'none') +
+  theme_classic() +
+  labs(x = 'Contributors', y = 'Regions')
 
-a + b + plot_layout(ncol = 1)
-ggsave('figures/response_distribution.png', width = 6.5, height = 8)
+a + b + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = 'A')
+ggsave('figures/1_response_distribution.png', width = 6.5, height = 5.5)
 ```
 
-Here is the cumulative summary of regions per land-use category based on consensus assessments (Common > 1% to 20% regional  land area; Widespread > 20% regional land area). 
+How many published archaeolgical excavations are estimated for each region?
 
 ```{r}
+# a function for calculating the mode, from https://stackoverflow.com/a/46846474
+calculate_mode <- function(x) {
+  uniqx <- unique(x)
+  uniqx[which.max(tabulate(match(x, uniqx)))]
+}
 
-cumsum_landuse_regions <- 
-consensus %>% 
-  select(Region, FHG_10KBP:URBAN_1850CE) %>% 
-  gather(variable, value, - Region) %>% 
-  filter(value %in% c("Widespread", "Common", "Split", "Present")) %>% 
-  separate(variable, into = c("land_use_category", "years_BP"), sep = "_") %>% 
-  mutate(land_use_category = ifelse(str_detect(land_use_category, "AGR"),
-                                    str_replace_all(land_use_category , 
-                                                    "AGR", 
-                                                    "AG"),
-                                    land_use_category)) %>% 
-  mutate(land_use_category = case_when(
-    land_use_category == "FHG"   ~  "Foraging",
-    land_use_category == "EXAG"  ~  "Extensive Agriculture",
-    land_use_category == "INAG"  ~  "Intensive Agriculture",
-    land_use_category == "PAS"   ~  "Pastoralism",
-    land_use_category == "URBAN" ~  "Urban Centers") 
-    ) %>% 
-  mutate(years_BP = ifelse(str_detect(tolower(years_BP), "kbp"), 
-                           -parse_number(years_BP) * 1000,
-                           ifelse(str_detect(tolower(years_BP), "ce"), 
-                           parse_number(years_BP),
-                           -parse_number(years_BP)))) %>% 
-  unite(land_use_category_consensus_assessments, 
-        c('land_use_category', 
-          'value'),
-        sep = " ") %>%
-  complete(land_use_category_consensus_assessments,
-           nesting(years_BP)) %>% 
-  group_by(land_use_category_consensus_assessments, 
-           years_BP) %>% 
-  summarise(n = n()) %>% 
-  mutate(perc = n / sum(n) * 100)  %>% 
-  ungroup() %>% 
-  # make an ordered factor for nice plotting
-  mutate(land_use_category_consensus_assessments = 
-           fct_relevel(land_use_category_consensus_assessments, 
-                       c(
-                         "Foraging Common",
-                         "Foraging Widespread",
-                         "Extensive Agriculture Common",
-                         "Extensive Agriculture Widespread",
-                         "Intensive Agriculture Common",
-                         "Intensive Agriculture Widespread",
-                         "Pastoralism Common",
-                         "Pastoralism Widespread",
-                         "Urban Centers Present",
-                         "Urban Centers Split"
-                         )))
-  
-  
-  
-# make years label and breaks
-years_label <- unique(ifelse(cumsum_landuse_regions$years_BP < 0,
-                      str_glue('{-cumsum_landuse_regions$years_BP} BP'),
-                      str_glue('{cumsum_landuse_regions$years_BP} CE')
-                      ))
+# use this vector to order the RN_SITES variable by increasing number of sites
+site_order <- c('< 50', '50-249', '250-499', '500-999', '> 1000')
 
-years_breaks <- unique(cumsum_landuse_regions$years_BP)
-
-# draw the plot
-ggplot(
-  cumsum_landuse_regions,
-  aes(years_BP,
-      perc,
-      fill = land_use_category_consensus_assessments)) +
-  geom_area(position = 'stack') +
-  scale_fill_brewer(palette = "Set3") +
-  scale_x_continuous(labels = years_label,
-                     breaks = years_breaks) +
-  theme_minimal(base_size = 10) +
-  theme(
-    axis.text.x = element_text(
-      angle = 90,
-      hjust = 1,
-      vjust = 0.5),
-    #  x- and y- offsets from the bottom-left of the plot, ranging from 0 - 1.
-    legend.position = c(0.4, 0.85),
-    legend.text = element_text(size = 10),
-    legend.key.size = unit(0.7, "line")) +
-  guides(fill = guide_legend(ncol = 2, 
-                             title = "Land-use category based on consensus assessments")) +
-  xlab("") +
-  ylab("Percent of all regions")
-
-ggsave('figures/cumulative_sum_land_use.png', height = 5, width = 7)
+# find the modal response for the number of published excavations in each region
+site_counts <- archaeoglobe %>%
+  select(REGION_ID, RN_SITES) %>%
+  group_by(REGION_ID) %>%
+  summarise(sites = calculate_mode(RN_SITES)) %>%
+  mutate(sites = ordered(sites, levels = site_order))
 ```
 
+```{r echo = FALSE}
+sites_plot <- regions %>%
+  left_join(site_counts, by = c('Archaeo_ID' = 'REGION_ID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = sites), size = .3, color = 'white') +
+  scale_fill_viridis_d(name = '', guide = 'legend') +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  labs(subtitle = '         Published Excavations') + # extra spaces move the title to the right a bit, needed for multipanel plot below
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position = 'bottom')
+
+sites_plot
+```
 
 ## Analysis functions
 
@@ -265,7 +212,7 @@ fit_gam <- function(x, n_cats){
 }
 ```
 
-This function extracts the estimated trends for each region, incorporating the global and regional splines as well as the region and contributor specific intercepts. Then it clusters these trends into 6 discrete clusters.
+This function extracts the estimated trends for each region, incorporating the global and regional splines as well as the region and contributor specific intercepts. Then it clusters these trends into 6 discrete clusters using k-means. The choice of 6 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal of ensuring visually interpretable results.
 
 ```{r}
 extract_trends <-function(mod, n_clusters = 6){
@@ -288,7 +235,9 @@ extract_trends <-function(mod, n_clusters = 6){
 
 # Analysis
 
-Now we use the functions defined above on the ArchaeoGlobe data. For convenience, first define a data frame that lists the prefixes of the variables we are interested in (e.g. "EXP" for expertise) and the levels of the ordered factors associated with each variable. This will make it easier to quickly focus on a specific variable. The `tribble` command is simply a way to make a data frame by row rather than column, which makes the code easier to read.
+## GAMM trends
+
+Now we use the functions defined above to estimate trends in ArchaeoGlobe data. For convenience, first define a data frame that lists the prefixes of the variables we are interested in (e.g. "EXP" for expertise) and the levels of the ordered factors associated with each variable. This will make it easier to quickly focus on a specific variable. The `tribble` command is simply a way to make a data frame by row rather than column, which makes the code easier to read.
 
 ```{r}
 response_levels <- tribble(
@@ -303,38 +252,35 @@ response_levels <- tribble(
 )
 ```
 
-Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single step, and save all the outputs in a tibble format for easy plotting. If you're running this for the first time, it should take about 40 minutes to run on a Intel NUC with a 5th-gen Intel Core i7-5557U processor and 16gb of RAM running Linux.
+Now map each of the above functions to each variable. This allows us to run the analysis for all variables of interest in a single step, and save all the outputs in a tibble format for easy plotting. If you're running this for the first time, it should take about 40 minutes to run on a Intel NUC with a 5th-gen Intel Core i7-5557U processor and 16gb of RAM running Linux. By default, we pull pre-computed results from a repository rather than running the time consuming analysis.
 
-```{r echo = T}
+```{r echo = FALSE}
 # A simple type of caching...
 # Do we want to run the modelling code, or
 # load a previously saved result from disk, or
 # download a previously saved result from a repository?
 # default is not run, then check if there is a saved file, and use that, or download
 
-# devtools::install_github('centerforopenscience/osfr')
-library(osfr)
-
 rerun_time_consuming_analysis <- FALSE # FALSE means do not run the modelling code when knitting
 
 if(rerun_time_consuming_analysis) {
-  message("running the modelling code, this may take 30-50 min...")
+  message('running the modelling code, this may take 30-50 min...')
   # go to the next chunk of code
 } else {
   # check if there is a local file and if so, load it
   if(file.exists('data/derived-data/trend_dat.rda')) {
     # the file exists on the local disk, so just read it in
-    message("Loading previously saved model results from disk...")
+    message('Loading previously saved model results from disk...')
     trend_dat <- readRDS('data/derived-data/trend_dat.rda')
   } else {
   # we don't want to run the modelling code, and the result don't exist locally,
   # so download
-  message("Downloading previously saved model results, takes 2-3 min...")
-  trend_dat <- osf_retrieve_file("kcr2e") %>% osf_download('data/derived-data/trend_dat.rda')
-  message("Loading the data downloaded from osf.io...")
+  message('Downloading previously saved model results, takes 2-3 min...')
+  trend_dat <- osf_retrieve_file('kcr2e') %>% osf_download('data/derived-data/trend_dat.rda')
+  message('Loading the data downloaded from osf.io...')
   trend_dat <- readRDS('data/derived-data/trend_dat.rda')
   writeLines(paste0('trend_dat.rda downloded from https://osf.io/kcr2e/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
-  message("Done.")
+  message('Done.')
   } 
 }
 ```
@@ -347,20 +293,20 @@ trend_dat <- response_levels %>%
          trends = map(mod, extract_trends))
 
 # save to disk
-saveRDS(trend_dat, 
-        file = "data/derived-data/trend_dat.rda")
+saveRDS(trend_dat, file = 'data/derived-data/trend_dat.rda')
 
 # write a note to indicate the provenance of this file
 this_commit <-  git2r::revparse_single(git2r::repository('.'), "HEAD")
-writeLines(paste0('trend_dat generated on ',
-                   Sys.Date() , ' from archaeoglobe.Rmd at git commit ',
-                    this_commit$sha, ' made by ',
-                    this_commit$author$name, ' on ',
-                    this_commit$author$when, " with the message '",
-                    this_commit$summary, "'"),
+
+writeLines(paste0('trend_dat generated on ', 
+                  Sys.Date() , ' from archaeoglobe.Rmd at git commit ',
+                  this_commit$sha, ' made by ',
+                  this_commit$author$name, ' on ',
+                  this_commit$author$when, " with the message '",
+                  this_commit$summary, "'"),
            con = 'data/derived-data/README.md', 
            sep = '')
-message("Done.")
+message('Done.')
 ```
 
 ```{r eval = FALSE, echo = FALSE}
@@ -368,272 +314,379 @@ message("Done.")
 # upload to osf.io, this needs to be done manually because we need to 
 # authenticate and don't want to put our PAT in the Rmd
 
-osf_auth("my-PAT-for-OSF") # Navigate to https://osf.io/settings/tokens/
+osf_auth('my-PAT-for-OSF') # Navigate to https://osf.io/settings/tokens/
 
 # upload the model data
-osf_retrieve_node("gcfs6") %>% 
-  osf_upload(path = "data/derived-data/trend_dat.rda", 
+osf_retrieve_node('gcfs6') %>% 
+  osf_upload(path = 'data/derived-data/trend_dat.rda', 
              overwrite = TRUE)
 
 # upload the README
-osf_retrieve_node("gcfs6") %>% 
-  osf_upload(path = "data/derived-data/README.md", 
+osf_retrieve_node('gcfs6') %>% 
+  osf_upload(path = 'data/derived-data/README.md', 
              overwrite = TRUE)
 ```
 
 # Results
 
+First we plot out the global trends for each land use type, and compare them to the consensus estimates. Then we plot the local (regional trends) for all land use types, and map out their associated clusters. Please refer to the .rmd source file for the code to make the plots.
+
+The global trend in foraging shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing foraging earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in foraging.
+
+The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
+
+How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
+
+The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
+
 ## Global Trends
 
-First we plot out the global trends for each land use type. Please refer to the source .rmd file for the plotting code.
- 
-```{r echo = FALSE}
- g1data <- trend_dat[3,]$mod[[1]] %>%
-    mgcv::plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
-    
-g1 <- ggplot(g1data,
-           aes(time / 1000, plogis(fit))) +
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-    scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'A', x = 'Thousand years BP', y = 'Hunting')  +
-    theme_bw()
+```{r echo = FALSE, fig.width = 5, fig.height = 6}
+global_trends <- trend_dat %>%
+  select(prefix, mod) %>%
+  mutate(trends = map(mod, ~plot.gam(., select = 0)[1]),
+         trends = map(trends, ~.[[1]]),
+         trends = map(trends, ~tibble(time = .$x, fit = c(.$fit), se = .$se))) %>%
+  select(-mod) %>%
+  unnest %>%
+  mutate(type = recode_factor(prefix,
+                              'EXAG' = 'Extensive Agriculture',
+                              'INAG' = 'Intensive Agriculture',
+                              'PAST' = 'Pastoralism',
+                              'HUNT' = 'Foraging',
+                              'URBN' = 'Urban',
+                              'EXP' = 'Expertise',
+                              'DQ' = 'Data Quality'),
+         time = time / 1000,
+         lower =  plogis(fit - 2 * se),
+         upper = plogis(fit + 2 * se),
+         fit = plogis(fit))
 
-g2data <- trend_dat[6,]$mod[[1]] %>%
-    mgcv::plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
+trend_colors <- c('#4daf4a', '#e41a1c', '#ff7f00', '#6a3d9a')
 
-g2 <- ggplot(g2data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'B', x = 'Thousand years BP', y = 'Pastoralism') +
-    theme_bw()
+g1 <- global_trends %>%
+  filter(prefix %in% c('HUNT','PAST','EXAG','INAG')) %>%
+ggplot(aes(time, fit, group = type)) +
+  geom_line(aes(color = type), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
+  scale_color_manual(guide = FALSE, values = trend_colors) +
+  scale_fill_manual(guide = FALSE, values = trend_colors) +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = 'Land-use extent\n') +
+  theme_bw() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type)
 
-g3data <- trend_dat[4,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
+g2 <- global_trends %>%
+  filter(prefix %in% c('EXP', 'DQ')) %>%
+ggplot(aes(time, fit, group = type)) +
+  geom_line(aes(color = type), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3) +
+  scale_color_discrete(guide = FALSE) +
+  scale_fill_discrete(guide = FALSE) +
+  scale_x_continuous(breaks = c(-10,-8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = 'Archaeological \nknowledge') +
+  theme_bw() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type)
 
-g3 <- ggplot(g3data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'C', x = 'Thousand years BP', y = 'Extensive \nAgriculture') +
-    theme_bw()
-    
-g4data <- trend_dat[5,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
+g1 + g2 + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = 'A')
+```
 
-g4 <- ggplot(g4data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
-    labs(title = 'D', x = 'Thousand years BP', y = 'Intensive \nAgriculture') +
-    theme_bw()
+The numerical cutpoints between the ordered categorical response levels estimated by the model vary across land-use type. This is a normal result of the ordered categorical regression, and basically means that different sources of error/uncertainty impact how contributors translate their mental models of areal extent (the latent, "real" value the regression is trying to estimate) into discrete categories across the different land use types. 
 
-g5data <- trend_dat[1,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]] 
+```{r cutpoints, echo = FALSE, fig.width = 6, fig.height = 4}
+cutpoints_dat <- trend_dat %>%
+  select(prefix, mod) %>%
+  mutate(cutpoints = map(mod, ~.$family$getTheta(TRUE)),
+         cutpoints = map(cutpoints , plogis)) %>%
+  select(-mod)
 
-g5 <- ggplot(g5data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'High'), limits = c(0,1)) +
-    labs(title = 'E', x = 'Thousand years BP', y = 'Expertise') +
-    theme_bw()
+cp1 <- global_trends %>%
+  filter(prefix == 'EXAG') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0, cutpoints_dat[[4,2]]), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#4daf4a') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#4daf4a') +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0, cutpoints_dat[[4,2]]), minor_breaks = NULL,
+                     labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = '', y = 'Land-use extent\n') +
+  theme_bw() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type)
 
-g6data <- trend_dat[2,]$mod[[1]] %>%
-    plot.gam(select = 0) %>% # selects the global trend
-    .[1] %>%
-    map(~tibble(time = .$x, fit = c(.$fit), se = .$se)) %>%
-    .[[1]]
+cp2 <- global_trends %>%
+  filter(prefix == 'INAG') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0, cutpoints_dat[[5,2]]), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#e41a1c') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#e41a1c') +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0, cutpoints_dat[[5,2]]), minor_breaks = NULL, 
+                     labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = '', y = '') +
+  theme_bw() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type)
 
-g6 <- ggplot(g6data,
-           aes(time / 1000, plogis(fit)))+
-    geom_line() +
-    geom_line(aes(y = plogis(fit + 2 * se)), linetype = 2) +
-    geom_line(aes(y = plogis(fit - 2 * se)), linetype = 2) +
-      scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('Unknown', 'Good'), limits = c(0,1)) +
-    labs(title = 'F', x = 'Thousand years BP', y = 'Data Quality') +
-    theme_bw()
+cp3 <- global_trends %>%
+  filter(prefix == 'PAST') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0, cutpoints_dat[[6,2]]), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color = '#ff7f00') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#ff7f00') +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0, cutpoints_dat[[6,2]]), minor_breaks = NULL, 
+                     labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = 'Land-use extent\n') +
+  theme_bw() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type)
+
+cp4 <- global_trends %>%
+  filter(prefix == 'HUNT') %>%
+  ggplot(aes(time, fit, group = type)) +
+  geom_hline(yintercept =c(0, cutpoints_dat[[3,2]]), linetype = 2, alpha = .5) +
+  geom_line(aes(color = type), size = 1.2, color =  '#6a3d9a') +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .3, fill = '#6a3d9a') +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0, cutpoints_dat[[3,2]]), minor_breaks = NULL, 
+                     labels = c('None', 'Minimal', 'Common', 'Widespread'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = '') +
+  theme_bw() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type)
+
+cp1 + cp2 + cp3 + cp4
+```
+
+Compare the global trends to the consensus assessments.
+
+```{r consensus_cumsum, echo = FALSE}
+cumsum_landuse_regions <- consensus %>% 
+  select(Region, FHG_10KBP:URBAN_1850CE) %>% 
+  gather(variable, value, -Region) %>% 
+  filter(value %in% c('Widespread', 'Common', 'Split', 'Present')) %>% 
+  separate(variable, into = c('land_use_category', 'years_BP'), sep = '_') %>% 
+  mutate(land_use_category = ifelse(str_detect(land_use_category, 'AGR'),
+                                    str_replace_all(land_use_category , 
+                                                    'AGR', 
+                                                    'AG'),
+                                    land_use_category)) %>% 
+  mutate(land_use_category = case_when(
+    land_use_category == 'FHG'   ~  'Foraging',
+    land_use_category == 'EXAG'  ~  'Extensive Agriculture',
+    land_use_category == 'INAG'  ~  'Intensive Agriculture',
+    land_use_category == 'PAS'   ~  'Pastoralism',
+    land_use_category == 'URBAN' ~  'Urban Centers') 
+    ) %>% 
+  mutate(years_BP = ifelse(str_detect(tolower(years_BP), 'kbp'), 
+                           -parse_number(years_BP) * 1000,
+                           ifelse(str_detect(tolower(years_BP), 'ce'), 
+                           parse_number(years_BP),
+                           -parse_number(years_BP)))) %>% 
+  unite(land_use_consensus, 
+        c('land_use_category', 
+          'value'),
+        sep = ' ') %>%
+  complete(land_use_consensus, nesting(years_BP)) %>% 
+  group_by(land_use_consensus, years_BP) %>% 
+  summarise(n = n()) %>% 
+  mutate(perc = n / sum(n) * 100)  %>% 
+  ungroup() %>% 
+  # make an ordered factor for nice plotting
+  mutate(land_use_consensus = 
+           fct_relevel(land_use_consensus, 
+                       c('Urban Centers Split',
+                         'Urban Centers Present',
+                         'Extensive Agriculture Common',
+                         'Extensive Agriculture Widespread',
+                         'Intensive Agriculture Common',
+                         'Intensive Agriculture Widespread',
+                         'Pastoralism Common',
+                         'Pastoralism Widespread',
+                         'Foraging Common',
+                         'Foraging Widespread'))) %>%
+  mutate(years_BP = if_else(years_BP > 0, years_BP - 1950, years_BP),
+         years_BP = years_BP / 1000)
+```
+
+```{r, echo = F, fig.width =6.5, fig.height = 8}
+cs1 <- ggplot(cumsum_landuse_regions, aes(years_BP, perc, fill = land_use_consensus)) +
+  geom_area(position = 'stack', color = 'black') +
+  scale_fill_brewer(palette = 'Paired') +
+  theme_minimal() +
+  scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0)) +
+  theme(panel.grid.minor = element_blank(), legend.text = element_text(size = 9),
+    legend.key.size = unit(0.7, 'line'), legend.position = 'bottom') +
+  guides(fill = guide_legend(title = '', nrow = 5, byrow = TRUE)) +
+  labs(x = 'Thousand years BP', y = 'Percent of all regions')
+
+cs2 <- ggplot(cumsum_landuse_regions, 
+  aes(years_BP, perc, fill = land_use_consensus)) +
+  geom_area(position = 'fill', color = 'black') +
+  scale_fill_brewer(palette = 'Paired') +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(), legend.text = element_text(size = 9),
+    legend.key.size = unit(0.7, 'line'), legend.position = 'bottom') +
+  guides(fill = FALSE) +
+  labs(x = 'Years BP', y = 'Proportion of global land use')
+
+cs1 / cs2 + plot_annotation(tag_levels = 'A')
+```
+
+```{r, fig.height = 7.5, fig.width = 6}
+(g1 + theme_minimal()) / cs1 + plot_annotation(tag_levels = 'A')
+
+ggsave('figures/3_trends_global.png', height = 7.5, width = 6.5)
 ```
 
 
-```{r echo=FALSE}
-# global trends
-(g1 + g2) / (g3 + g4) / (g5 + g6)
-ggsave('figures/global_trends.png', height = 12, width = 12)
-```
+## Regional Trends
 
 ```{r, echo = FALSE}
-plot_trends <- function(x, variable, color_theme = 'PuOr', title = 'Regional land-use trends'){
-  p1 <- x$trends[[1]] %>%
-    gather(time, value, '-10000':'-150') %>%
-    ggplot(aes(as.numeric(time) / 1000, value, 
-               group = REGION_LAB, color = as.factor(cluster))) +
-    geom_line() +
-    scale_color_brewer(palette = color_theme, guide = 'none') +
-    scale_x_continuous(breaks = c( -8,-6,-4,-2)) +
-    scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread')) +
-    facet_wrap(~cluster, nrow = 1) +
-    labs(x = 'Thousand years BP', y = 'Extent') +
-    theme_minimal() +
-    theme(strip.background = element_blank(),strip.text.x = element_blank())
-  
-  p2 <- x$trends[[1]] %>%
+plot_trends_landuse <- function(x, variable, tag){
+  rt1 <- x$trends[[1]] %>%
     select(REGION_LAB, cluster) %>% # just select the columns of interest
     left_join(select(x$data[[1]], REGION_ID:REGION_LAB)) %>%
     group_by(REGION_ID) %>%
     filter(row_number() == 1) %>%
     left_join(regions, ., by = c('Archaeo_ID' = 'REGION_ID')) %>% # join to the region shapes
-    mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA)) %>%
     ggplot() + # plot
     geom_sf(aes(fill = as.factor(cluster)), size = .3, color = 'white') +
     geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
-    labs(title = title, subtitle = variable, x = '', y='') +
-    scale_fill_brewer(palette = color_theme, guide = 'none') +  
-    theme_minimal()
-
+    labs(subtitle = variable, x = '', y='', tag = tag) +
+    scale_fill_brewer(palette = 'PuOr', guide = 'none') +  
+    coord_sf(datum = NA) +
+    theme_void()
+  
+  rt2 <- x$trends[[1]] %>%
+    gather(time, value, '-10000':'-150') %>%
+    ggplot(aes(as.numeric(time) / 1000, value, 
+               group = REGION_LAB, color = as.factor(cluster))) +
+    geom_line() +
+    scale_color_brewer(palette = 'PuOr', guide = 'none') +
+    scale_x_continuous(breaks = c(-8,-6,-4,-2), minor_breaks = NULL) +
+    scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High')) +
+    facet_wrap(~cluster, nrow = 1, 
+               labeller = labeller(cluster = 
+                                     c(`1` = 'Earlier', `2` = '', `3` = '', `4` = '', `5` = '', `6` = 'Later'))) +
+    labs(x = 'Thousand years BP', y = 'Extent') +
+    theme_minimal() +
+    theme(strip.background = element_blank())
+  
   # the patchwork command that prints the multipanel plots
-  p2/p1 + plot_layout(heights = c(5,1), widths = c(4,1))
+  (rt1 / rt2) + plot_layout(heights = c(5,1), widths = c(4,1))
+}
+
+plot_trends_knowledge <- function(x, variable, tag){
+  rt1 <- x$trends[[1]] %>%
+    select(REGION_LAB, cluster) %>% # just select the columns of interest
+    left_join(select(x$data[[1]], REGION_ID:REGION_LAB)) %>%
+    group_by(REGION_ID) %>%
+    filter(row_number() == 1) %>%
+    left_join(regions, ., by = c('Archaeo_ID' = 'REGION_ID')) %>% # join to the region shapes
+    ggplot() + # plot
+    geom_sf(aes(fill = as.factor(cluster)), size = .3, color = 'white') +
+    geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
+    labs(subtitle = variable, x = '', y='', tag = tag) +
+    scale_fill_viridis_d(guide = 'none') +  
+    coord_sf(datum = NA) +
+    theme_void()
+  
+  rt2 <- x$trends[[1]] %>%
+    gather(time, value, '-10000':'-150') %>%
+    ggplot(aes(as.numeric(time) / 1000, value, 
+               group = REGION_LAB, color = as.factor(cluster))) +
+    geom_line() +
+    scale_color_viridis_d(guide = 'none') +  
+    scale_x_continuous(breaks = c(-8,-6,-4,-2), minor_breaks = NULL) +
+    scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High')) +
+    facet_wrap(~cluster, nrow = 1, 
+               labeller = labeller(cluster = c(`1` = 'Later', `2` = '', `3` = '', `4` = '', `5` = '', `6` = 'Earlier'))) +
+    labs(x = 'Thousand years BP', y = '') +
+    theme_minimal() +
+    theme(strip.background = element_blank())
+  
+  # the patchwork command that prints the multipanel plots
+  (rt1 / rt2) + plot_layout(heights = c(5,1), widths = c(4,1))
 }
 ```
 
-
-## Hunting
-
-The global trend in hunting shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing hunting earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in hunting.
-
-```{r echo = FALSE, fig.width = 6.5, fig.cap = 'Regional trends in the areal extent of hunting. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.'}
-trend_dat[3, ] %>%
-  mutate(trends = map(trends, ~mutate(.,
-                                 cluster = recode_factor(cluster, 
-                                 `6` = '1', `5` = '2',`1` = '3', 
-                                 `2` = '4', `3` = '5', `4` = '6')))) %>%
-  plot_trends('Hunting')
-ggsave('figures/trends_hunting.png', height = 8, width = 12)
-```
-
-## Extensive Agriculture
-
-The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
-
-```{r echo = FALSE, fig.width = 6.5}
-trend_dat[4, ] %>%
+```{r echo = FALSE, fig.width = 12, fig.height=8}
+r1 <- trend_dat[4, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
                                  `4` = '1', `2` = '2',`1` = '3', 
                                  `5` = '4', `3` = '5', `6` = '6')))) %>%
-plot_trends('Extensive Agriculture')
-ggsave('figures/trends_extensive.png', height = 8, width = 12)
-```
+  plot_trends_landuse('Extensive Agriculture', tag = 'A')
 
-## Intensive Agriculture
-
-See above.
-
-```{r echo = FALSE, fig.width = 6.5}
-trend_dat[5, ] %>%
+r2 <- trend_dat[5, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
                                 `6` = '1', `5` = '2', `3` = '3', 
                                  `1` = '4', `2` = '5', `4` = '6')))) %>%
-plot_trends('Intensive Agriculture')
-ggsave('figures/trends_intensive.png', height = 8, width = 12)
-```
+  plot_trends_landuse('Intensive Agriculture', tag = 'B')
 
-## Pastoralism
-
-See above.
-
-```{r echo = FALSE, fig.width = 6.5}
-trend_dat[6, ] %>%
+r3 <- trend_dat[6, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
-                                 `6` = '1', `5` = '2',`3` = '3', 
-                                 `1` = '4', `4` = '5', `2` = '6')))) %>%
-plot_trends('Pastoralism')
-ggsave('figures/trends_pastoralism.png', height = 8, width = 12)
-```
+                                 `3` = '1', `5` = '2',`1` = '3', 
+                                 `6` = '4', `4` = '5', `2` = '6')))) %>%
+  plot_trends_landuse('Pastoralism', tag = 'C')
 
-## Urbanism
-
-See above.
-```{r echo = FALSE, fig.width = 6.5, fig.cap = 'Global and regional trends in the presence of urban centers. (A) Global trend (all regions) with 95% confidence interval. (B) Regional deviations from global trend, clustered via k-means. (C) Map of the local deviations from the global trend, same clusters as in B.'}
-trend_dat[7, ] %>%
+r4 <- trend_dat[3, ] %>%
   mutate(trends = map(trends, ~mutate(.,
                                  cluster = recode_factor(cluster, 
-                                 `2` = '1', `6` = '2',`5` = '3', 
-                                 `4` = '4', `1` = '5', `3` = '6')))) %>%
-plot_trends('Urbanism')
-ggsave('figures/trends_urbanism.png', height = 8, width = 12)
+                                 `6` = '1', `5` = '2',`1` = '3', 
+                                 `2` = '4', `3` = '5', `4` = '6')))) %>%
+  plot_trends_landuse('Foraging', tag = 'D')
+
+(r1 | r2 ) / (r3 | r4)
+
+ggsave('figures/4_trends_map_landuse.png', height = 8, width = 12)
 ```
 
 
-## Expertise and Data Quality
-
-How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
-
-Now we cluster together the local deviations from the global trend using a k-means algorithm. The selection of 6 clusters is somewhat arbitrary, and is made simply based on visual comparisons of different cluster solutions with the goal making the results visually interpretable. The trajectories in these clusters are deviations from the global trend, so a horizontal line would indicate no deviation from the global trend.
-
-The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
-
-```{r, echo = FALSE, fig.width = 6.5}
-trend_dat[2, ] %>%
-  mutate(trends = map(trends, ~mutate(., 
-                                  cluster = recode_factor(cluster, 
-                                 `3` = '1', `2` = '2',`6` = '3', 
-                                 `1` = '4', `5` = '5', `4` = '6')))) %>%
-  plot_trends('Data Quality', color_theme = 'RdYlBu', title = 'Archaeological trends') + 
-  scale_y_continuous(breaks = c(0, 1), labels = c('Unknown', 'Good')) +
-  labs( x = 'Thousand years BP', y = 'Quality')
-
-ggsave('figures/trends_quality.png', height = 8, width = 12)
-```
-
-```{r, echo = FALSE, fig.width = 6.5}
-trend_dat[1, ] %>%
+```{r, echo = FALSE, fig.width = 12, fig.height = 8}
+k1 <- trend_dat[1, ] %>%
   mutate(trends = map(trends, 
                       ~mutate(., cluster = recode_factor(cluster, 
                                  `1` = '1', `2` = '2',`3` = '3', 
                                  `5` = '4', `4` = '5', `6` = '6')))) %>%
-  plot_trends('Expertise', color_theme = 'RdYlBu', title = 'Archaeological trends') + 
-  scale_y_continuous(breaks = c(0,1), labels = c('None', 'High')) +
-  labs(x = 'Thousand years BP', y = 'Expertise')
+  plot_trends_knowledge('Expertise', tag = 'A')
 
-ggsave('figures/trends_exp.png', height = 8, width = 12)
+k2 <- trend_dat[2, ] %>%
+  mutate(trends = map(trends, ~mutate(., 
+                                  cluster = recode_factor(cluster, 
+                                 `3` = '1', `2` = '2',`6` = '3', 
+                                 `1` = '4', `5` = '5', `4` = '6')))) %>%
+  plot_trends_knowledge('Data Quality', tag = 'B')
+
+g2 <- global_trends %>%
+  filter(prefix %in% c('EXP', 'DQ')) %>%
+ggplot(aes(time, fit, group = type)) +
+  geom_ribbon(aes(ymin = lower, ymax =  upper, fill = type), alpha = .5, fill = 'grey') +
+  geom_line(aes(color = type), size = 1.2, color = 'black') +
+  scale_x_continuous(breaks = c(-10,-8,-6,-4,-2,0), minor_breaks = NULL) +
+  scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High'), limits = c(0,1)) +
+  labs(x = 'Thousand years BP', y = 'Archaeological \nknowledge', tag = 'C') +
+  theme_minimal() +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~type, nrow = 1)
+
+(k1 | k2) / (g2 + sites_plot + labs(tag = 'D') + plot_layout(widths = c(.9, 1))) + plot_layout(heights = c(1, .7))
+
+ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
 ```
+
 
 ## Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
 
-We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a  Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
+We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
 
 ```{r}
 consensus_cat <- 
@@ -752,3 +805,106 @@ Bollen, K. A. (1989). Structural Equations with Latent Variables (Wiley Series i
 Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. Routledge.
 
 Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
+
+
+```{r}
+#temporary stopping point
+knitr::knit_exit()
+```
+
+
+## HYDE Comparison
+
+Plot the onset time for intensive agriculture worldwide, based on ArchaeoGLOBE consensus assessments, at the Common and Widespread levels.
+
+```{r, fig.width = 4.5, fig.height = 6.5}
+inag_onset <- consensus %>%
+  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
+  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
+  filter(value %in% c('Common', 'Widespread')) %>%
+  mutate(time = parse_number(time),
+         time = case_when(time == 1500 ~ .5,
+                          time == 1750 ~ .25,
+                          time == 1850 ~ .15,
+                          time <= 10 ~ time),
+         time = time * -1) %>%
+  group_by(Region, value) %>%
+  summarise(onset = min(time)) %>%
+  spread(value, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common))
+  
+on1 <- inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Common), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  labs(subtitle = 'Onset of common (> 1% land area) intensive agriculture') +
+  theme_void() +
+  theme(legend.position='bottom')
+
+on2 <- inag_onset %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
+  scale_fill_viridis_c(guide = 'none', limits = c(-8, -.1)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  labs(subtitle = 'Onset of widespread (> 20% land area) intensive agriculture') +
+  theme_void() 
+
+(on1 / on2) + plot_annotation(tag_levels = 'A')
+```
+
+Alternative approach, using EE's ag_join .csv file.
+```{r}
+ag_join <- read_csv('../hyde_archaeoglobe_dataset_2018_08_31/Ag_Join.csv') %>%
+  select(-DIFF, -AG_W_InExAg) %>%
+  gather(type, time, 2:5) %>%
+  mutate(time = na_if(time, 'Never'),
+         time = if_else(str_detect(time, 'BP'), parse_number(time) * -0.001, 
+                        (parse_number(time) - 1950) * 0.001)) %>%
+  separate(type, c('source', 'level', NA)) %>%
+  mutate(level = if_else(level == 'CW', 'Common (> 1% land area)', 
+                         'Widespread (> 20% land area)'),
+         source = if_else(source == 'AG', 'ArchaeoGLOBE', source))
+
+ag_join %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = time), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar') +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_grid(source ~ level, switch = 'y') +
+  theme(legend.position = 'bottom', strip.text.y = element_text(angle = -90))
+```
+
+Differences between HYDE and ArchaeoGLOBE onset times.
+```{r}
+onset_difference <- ag_join %>%
+  spread(source, time) %>%
+  mutate(diff = ArchaeoGLOBE - HYDE,
+         diff = round(diff))
+  
+ggplot(onset_difference, aes(diff, group = diff)) +
+  geom_bar(aes(fill = diff)) +
+  scale_fill_distiller(palette = 'PuOr', limits = c(-6,6)) +
+  facet_wrap(~level) +
+  theme_minimal() +
+  labs(x = 'Onset difference (Thousand Years)') +
+  coord_flip()
+
+onset_difference %>%   
+  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = diff), size = .3, color = 'white') +
+  scale_fill_distiller(name = 'Onset', guide = 'colorbar', palette = 'PuOr', direction = 1, limits = c(-6, 6)) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_wrap(~ level) +
+  theme(legend.position = 'bottom')
+```
