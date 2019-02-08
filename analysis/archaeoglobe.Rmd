@@ -859,27 +859,36 @@ on2 <- inag_onset %>%
 
 Alternative approach, using EE's ag_join .csv file.
 ```{r}
-ag_join <- read_csv('../hyde_archaeoglobe_dataset_2018_08_31/Ag_Join.csv') %>%
+ag_join <- read_csv('data/raw-data/Ag_Join.csv') %>%
   select(-DIFF, -AG_W_InExAg) %>%
   gather(type, time, 2:5) %>%
   mutate(time = na_if(time, 'Never'),
-         time = if_else(str_detect(time, 'BP'), parse_number(time) * -0.001, 
+         time = if_else(str_detect(time, 'BP'), 
+                        parse_number(time) * -0.001, 
                         (parse_number(time) - 1950) * 0.001)) %>%
   separate(type, c('source', 'level', NA)) %>%
-  mutate(level = if_else(level == 'CW', 'Common (> 1% land area)', 
+  mutate(level = if_else(level == 'CW', 
+                         'Common (> 1% land area)', 
                          'Widespread (> 20% land area)'),
          source = if_else(source == 'AG', 'ArchaeoGLOBE', source))
 
+ag_join_maps <- 
 ag_join %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
   ggplot() +
   geom_sf(aes(fill = time), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar') +
+  scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_grid(source ~ level, switch = 'y') +
-  theme(legend.position = 'bottom', strip.text.y = element_text(angle = -90))
+  theme(legend.position = c(0.52, 0.5), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line"),
+        strip.text.y = element_text(angle = -90)) 
+
 ```
 
 Differences between HYDE and ArchaeoGLOBE onset times.
@@ -889,22 +898,56 @@ onset_difference <- ag_join %>%
   mutate(diff = ArchaeoGLOBE - HYDE,
          diff = round(diff))
   
+onset_difference_barplot <- 
 ggplot(onset_difference, aes(diff, group = diff)) +
   geom_bar(aes(fill = diff)) +
-  scale_fill_distiller(palette = 'PuOr', limits = c(-6,6)) +
+  scale_fill_distiller(palette = 'PuOr', 
+                       limits = c(-6,6),
+                       name = 'Onset\ndifference (ka)') +
   facet_wrap(~level) +
   theme_minimal() +
-  labs(x = 'Onset difference (Thousand Years)') +
-  coord_flip()
-
+  labs(x = 'Onset \nifference (Tka',
+       y = '% Regions') +
+  coord_flip() +
+  theme(legend.position = c(0.80, 0.95, 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.kdirection="horizontal",
+        legend.ey.size = unit(0.5,"line"))
+ +
+  guides(fill = guide_colorbar(title.position = "top"))
+onset_difference_maps <- 
 onset_difference %>%   
   left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
   ggplot() +
   geom_sf(aes(fill = diff), size = .3, color = 'white') +
-  scale_fill_distiller(name = 'Onset', guide = 'colorbar', palette = 'PuOr', direction = 1, limits = c(-6, 6)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
+                       guide = 'colorbar', 
+                       palette = 'PuOr', 
+                       direction = 1, 
+                       limits = c(-6, 6)) +
+  geom_sf_text(aes(label = region_label), 
+               nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_wrap(~ level) +
-  theme(legend.position = 'bottom')
+  theme(legend.position = c(0.50, 0.70), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6),
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
 ```
+
+```{r}
+# put the figs together for the ArchaeoGLOBE-HYDE comparison
+
+# not quite looking right...
+(aag_join_maps  / onset_difference_maps / onset_difference_barplot) + 
+  plot_layout(heights = c(2, 1, 1))
+
+```
+
+
+
