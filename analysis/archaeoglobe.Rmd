@@ -808,8 +808,8 @@ Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and mo
 
 
 ```{r}
-#temporary stopping point
-knitr::knit_exit()
+# temporary stopping point
+# knitr::knit_exit()
 ```
 
 
@@ -838,7 +838,7 @@ on1 <- inag_onset %>%
   ggplot() +
   geom_sf(aes(fill = Common), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   labs(subtitle = 'Onset of common (> 1% land area) intensive agriculture') +
   theme_void() +
@@ -849,7 +849,7 @@ on2 <- inag_onset %>%
   ggplot() +
   geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
   scale_fill_viridis_c(guide = 'none', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   labs(subtitle = 'Onset of widespread (> 20% land area) intensive agriculture') +
   theme_void() 
@@ -858,7 +858,7 @@ on2 <- inag_onset %>%
 ```
 
 Alternative approach, using EE's ag_join .csv file.
-```{r}
+```{r fig.width = 4.5, fig.height = 6.5}
 ag_join <- read_csv('data/raw-data/Ag_Join.csv') %>%
   select(-DIFF, -AG_W_InExAg) %>%
   gather(type, time, 2:5) %>%
@@ -878,7 +878,7 @@ ag_join %>%
   ggplot() +
   geom_sf(aes(fill = time), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_grid(source ~ level, switch = 'y') +
@@ -892,7 +892,7 @@ ag_join %>%
 ```
 
 Differences between HYDE and ArchaeoGLOBE onset times.
-```{r}
+```{r fig.width = 4.5, fig.height = 6.5}
 onset_difference <- ag_join %>%
   spread(source, time) %>%
   mutate(diff = ArchaeoGLOBE - HYDE,
@@ -906,17 +906,17 @@ ggplot(onset_difference, aes(diff, group = diff)) +
                        name = 'Onset\ndifference (ka)') +
   facet_wrap(~level) +
   theme_minimal() +
-  labs(x = 'Onset \nifference (Tka',
+  labs(x = 'Onset\ndifference (ka)',
        y = '% Regions') +
   coord_flip() +
-  theme(legend.position = c(0.80, 0.95, 
+  theme(legend.position = c(0.95, 0.2), 
         legend.title=element_text(size=8), 
         legend.text=element_text(size=6), 
         legend.text.align = 1,
-        legend.kdirection="horizontal",
-        legend.ey.size = unit(0.5,"line"))
- +
+        legend.direction="horizontal",
+        legend.key.size = unit(0.5,"line")) +
   guides(fill = guide_colorbar(title.position = "top"))
+
 onset_difference_maps <- 
 onset_difference %>%   
   left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
@@ -928,7 +928,7 @@ onset_difference %>%
                        direction = 1, 
                        limits = c(-6, 6)) +
   geom_sf_text(aes(label = region_label), 
-               nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+               nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_wrap(~ level) +
@@ -940,14 +940,88 @@ onset_difference %>%
   guides(fill = guide_colorbar(title.position = "top"))
 ```
 
-```{r}
+```{r results='hide', fig.width = 4.5, fig.height = 6.5}
 # put the figs together for the ArchaeoGLOBE-HYDE comparison
+# looks good when run interactively, but notwhen knit
 
-# not quite looking right...
-(aag_join_maps  / onset_difference_maps / onset_difference_barplot) + 
-  plot_layout(heights = c(2, 1, 1))
+(ag_join_maps  / onset_difference_maps / onset_difference_barplot) + 
+  plot_layout(heights = c(2, 1, 1)) +
+  plot_annotation(tag_levels = "A")
+
+ggsave("figures/ArchaeoGLOBE-HYDE-comparison.png", width = 183, units = "mm")
 
 ```
+
+```{r fig.width = 4.5, fig.height = 6.5}
+# doesn't look good when knit
+knitr::include_graphics("figures/ArchaeoGLOBE-HYDE-comparison.png")
+```
+
+
+```{r}
+
+ag_join_maps <- 
+ag_join %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = time), size = .3, color = 'white') +
+  scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_grid(source ~ level, switch = 'y') +
+  theme(legend.position = c(0.52, 0.5), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line"),
+        strip.text.y = element_text(angle = -90)) 
+
+onset_difference_maps <- 
+onset_difference %>%   
+  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  ggplot() +
+  geom_sf(aes(fill = diff), size = .3, color = 'white') +
+  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
+                       guide = 'colorbar', 
+                       palette = 'PuOr', 
+                       direction = 1, 
+                       limits = c(-6, 6)) +
+  geom_sf_text(aes(label = region_label), 
+               nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_wrap(~ level) +
+  theme(legend.position = c(0.50, 0.70), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6),
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
+
+
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
