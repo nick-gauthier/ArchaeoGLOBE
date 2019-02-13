@@ -28,9 +28,10 @@ After fitting the model, we can extract the region-specific trends, use a k-mean
 
 # Setup
 
-Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` package to help us plot shapefiles in a tidy context. The `dataverse` and `osfr` packages allows us to pull the raw survey data and precomputed analysis files from their online repositories. Finally, we'll use `patchwork` (installed from GitHub) to combine multiple ggplots in the same image.
+Import packages needed for analysis. We'll use packages from the `tidyverse`, such as `readr`, `dplyr`, and `ggplot2` for data import, processing, and plotting. We'll also use `mgcv` for fitting nonlinear trends to the data. We'll use the `sf` and `raster` packages to handle spatial data and plotting. The `dataverse` and `osfr` packages allows us to pull the raw survey data and precomputed analysis files from their online repositories. Finally, we'll use `patchwork` (installed from GitHub) to combine multiple ggplots in the same image.
 
 ```{r, message = FALSE}
+library(raster)
 library(tidyverse)
 library(mgcv)
 library(sf)
@@ -72,7 +73,7 @@ consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 
 Repeat for the archaeological regions shapefile.
 
-```{r dataverse-shapefile, echo = TRUE}
+```{r dataverse-shapefile-simple, echo = TRUE}
 # repeat for shapefile
 ArchaeoGLOBE_Regions_DOI <- 'doi:10.7910/DVN/CQWUBI'
 
@@ -97,7 +98,6 @@ regions <- st_read('data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_S
           quiet = TRUE) %>%
   # add labels for just the islands, will make plotting easier in the future
   mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
-
 ```
 
 ## Exploratory plots
@@ -806,19 +806,62 @@ Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. 
 
 Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
 
-
-```{r}
-# temporary stopping point
-# knitr::knit_exit()
-```
-
-
 ## HYDE Comparison
 
 Plot the onset time for intensive agriculture worldwide, based on ArchaeoGLOBE consensus assessments, at the Common and Widespread levels.
 
-```{r, fig.width = 4.5, fig.height = 6.5}
-inag_onset <- consensus %>%
+```{r dataverse-shapefile, echo = TRUE}
+# just download the shapefile we want
+ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[
+  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
+
+# read into local dir
+walk(ArchaeoGLOBE_Regions_df_files$label,
+    ~get_file(.x, ArchaeoGLOBE_Regions_DOI) %>% 
+      writeBin(paste0('data/raw-data/', .x)))
+
+unzip('data/raw-data/ArchaeGLOBE_Regions.zip', 
+      overwrite = TRUE,
+      exdir = 'data/raw-data/ArchaeoGLOBE_Regions')
+
+# read into the current environment, and simplify the polygons for faster plotting
+regions_hyde <- st_read('data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
+          quiet = TRUE) %>%
+  st_transform('+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+```
+
+```{r hyde-processing}
+## need to use rcurl or something to download hyde directly
+hyde_crops <- list.files('../HYDE/', full.names = TRUE, recursive = TRUE) %>%
+  .[str_detect(., 'cropland')] %>% # get just the cropland files
+  map(raster) %>%
+  .[c(9:7,1:6)] %>% # hacky solution to fix later, sensitive to OS settings
+  brick %>%
+  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0') %>%
+  raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
+  `names<-`(c('ID', -8, -6, -4, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
+  gather(time, value, 2:10) %>%
+  mutate(time = as.numeric(time)) %>%
+  left_join(regions, by = c('ID' = 'Archaeo_ID')) %>%
+  mutate(prop = value / Land_Area)
+
+hyde_onset <- hyde_crops %>%
+  filter(prop >= 0.01) %>%
+  mutate(level = if_else(prop >= 0.2, 'Widespread', 
+                                      'Common')) %>%
+  group_by(ID, level) %>%
+  summarise(onset = min(time)) %>%
+  spread(level, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
+  gather(level, onset, Common:Widespread) %>%
+  mutate(level = if_else(level == 'Common', 
+                         'Common (> 1% land area)', 
+                         'Widespread (> 20% land area)'),
+         source = 'HYDE') %>%
+  rename(Region = ID)
+
+
+archaeoglobe_onset <- consensus %>%
   select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
   gather(time, value, INAG_10KBP:INAG_1850CE) %>%
   filter(value %in% c('Common', 'Widespread')) %>%
@@ -831,52 +874,23 @@ inag_onset <- consensus %>%
   group_by(Region, value) %>%
   summarise(onset = min(time)) %>%
   spread(value, onset) %>%
-  mutate(Common = if_else(is.na(Common), Widespread, Common))
-  
-on1 <- inag_onset %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  ggplot() +
-  geom_sf(aes(fill = Common), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Thousand years BP', guide = 'colorbar', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  labs(subtitle = 'Onset of common (> 1% land area) intensive agriculture') +
-  theme_void() +
-  theme(legend.position='bottom')
-
-on2 <- inag_onset %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  ggplot() +
-  geom_sf(aes(fill = Widespread), size = .3, color = 'white') +
-  scale_fill_viridis_c(guide = 'none', limits = c(-8, -.1)) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  labs(subtitle = 'Onset of widespread (> 20% land area) intensive agriculture') +
-  theme_void() 
-
-(on1 / on2) + plot_annotation(tag_levels = 'A')
-```
-
-Alternative approach, using EE's ag_join .csv file.
-```{r fig.width = 4.5, fig.height = 6.5}
-ag_join <- read_csv('data/raw-data/Ag_Join.csv') %>%
-  select(-DIFF, -AG_W_InExAg) %>%
-  gather(type, time, 2:5) %>%
-  mutate(time = na_if(time, 'Never'),
-         time = if_else(str_detect(time, 'BP'), 
-                        parse_number(time) * -0.001, 
-                        (parse_number(time) - 1950) * 0.001)) %>%
-  separate(type, c('source', 'level', NA)) %>%
-  mutate(level = if_else(level == 'CW', 
+  mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
+  gather(level, onset, Common:Widespread) %>%
+  mutate(level = if_else(level == 'Common', 
                          'Common (> 1% land area)', 
                          'Widespread (> 20% land area)'),
-         source = if_else(source == 'AG', 'ArchaeoGLOBE', source))
+         source = 'ArchaeoGLOBE')
+```
 
-ag_join_maps <- 
-ag_join %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+```{r fig.width = 4.5, fig.height = 6.5}
+ag_onset_maps <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level, source) %>%
+  filter(!is.na(level) & !is.na(source)) %>%
+  select(Archaeo_ID, level, source, onset) %>%
+  left_join(regions, .) %>%
   ggplot() +
-  geom_sf(aes(fill = time), size = .3, color = 'white') +
+  geom_sf(aes(fill = onset), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
   coord_sf(datum = NA) +
@@ -887,14 +901,19 @@ ag_join %>%
         legend.text=element_text(size=6), 
         legend.text.align = 1,
         legend.key.size = unit(0.5,"line"),
-        strip.text.y = element_text(angle = -90)) 
-
+        strip.text.y = element_text(angle = -90))
 ```
 
 Differences between HYDE and ArchaeoGLOBE onset times.
 ```{r fig.width = 4.5, fig.height = 6.5}
-onset_difference <- ag_join %>%
-  spread(source, time) %>%
+# world regions that have crops in HYDE at 2000CE
+hyde_ag_regions <- hyde_crops %>%
+  filter(time == 0.05 & prop >= 0.01) %>%
+  pull(ID)
+
+onset_difference <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
+  spread(source, onset) %>%
+  filter(Region %in% hyde_ag_regions) %>%
   mutate(diff = ArchaeoGLOBE - HYDE,
          diff = round(diff))
   
@@ -919,7 +938,11 @@ ggplot(onset_difference, aes(diff, group = diff)) +
 
 onset_difference_maps <- 
 onset_difference %>%   
-  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level) %>%
+  filter(!is.na(level)) %>%
+  select(Archaeo_ID, level, diff) %>%
+  left_join(regions, .) %>%
   ggplot() +
   geom_sf(aes(fill = diff), size = .3, color = 'white') +
   scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
@@ -942,9 +965,9 @@ onset_difference %>%
 
 ```{r results='hide', fig.width = 4.5, fig.height = 6.5}
 # put the figs together for the ArchaeoGLOBE-HYDE comparison
-# looks good when run interactively, but notwhen knit
+# looks good when run interactively, but not when knit
 
-(ag_join_maps  / onset_difference_maps / onset_difference_barplot) + 
+(ag_onset_maps  / onset_difference_maps / onset_difference_barplot) + 
   plot_layout(heights = c(2, 1, 1)) +
   plot_annotation(tag_levels = "A")
 
