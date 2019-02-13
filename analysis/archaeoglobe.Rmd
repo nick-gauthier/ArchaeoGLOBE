@@ -18,13 +18,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       cache = FALSE)
 ```
 
-Analysis code for the ArchaeoGlobe database. Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data.
-
-We model ordered categorical data using a latent variable following a logistic distribution. The model identifies a series of cut points, which correspond the the probabilities of the latent variable falling within each of our categories.
-
-We fit two sets of trends. One trend is fitted to all the data simultaneously, representing the global trend across all archaeological regions. Then we fit region-level trends, which represent the deviation of each region from the global trend. By penalizing the "wiggliness" of the trend lines, we allow regional trends that don't significantly deviate from the global trend to be penalized to 0, effectively reducing that particular region to the global trend. This is a form of partial pooling, allowing the model to share information between groups and in so doing make the results less sensitive to regions with exceptionally low response rates.
-
-After fitting the model, we can extract the region-specific trends, use a k-means clustering algorithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
+Analysis code for the ArchaeoGLOBE project. This notebook was used to produce all the analyses and figures in the publication. All data are downloaded from their associated online repositories prior to the analysis.
 
 # Setup
 
@@ -47,9 +41,11 @@ library(osfr)
 
 ## Data import
 
-Read in the latest version of the ArchaeoGLOBE database and the consensus assessment from the Dataverse repository.
+Download all data necessary for the analysis and import into R. By default, the code chunks that actually download the data are hidden here, so please refer to the source .rmd document for the relevant code.
 
-```{r dataverse-database, echo = TRUE}
+Read in the latest version of the ArchaeoGLOBE database and the consensus assessment from the Dataverse repository. Refer to the source .rmd document for the code to download the shapefiles from the Dataverse repository.
+
+```{r dataverse-database, echo = FALSE}
 Sys.setenv('DATAVERSE_SERVER' = 'dataverse.harvard.edu')
 
 # get data frame of files on dataverse
@@ -65,42 +61,93 @@ ArchaeoGLOBE_Data_df_files <- ArchaeoGLOBE_Data_df$files[
 walk(ArchaeoGLOBE_Data_df_files$label,
      ~get_file(.x, ArchaeoGLOBE_Data_DOI) %>% 
        writeBin(paste0('data/raw-data/', .x)))
+```
 
-# read into the current environment
+```{r}
 archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
 consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 ```
 
-Repeat for the archaeological regions shapefile.
+Repeat for the archaeological regions shapefile. We'll use the "simplified regions" shapefile for plotting purposes, and the original shapefile for the ArchaeoGLOBE -- HYDE comparison at the end of this notebook. Refer to the source .rmd document for the code to download the shapefiles from the Dataverse repository.
 
-```{r dataverse-shapefile-simple, echo = TRUE}
-# repeat for shapefile
+```{r dataverse-shapefile-download, echo = FALSE}
 ArchaeoGLOBE_Regions_DOI <- 'doi:10.7910/DVN/CQWUBI'
 
 # get data frame of files on DV
 ArchaeoGLOBE_Regions_df <- get_dataset(ArchaeoGLOBE_Regions_DOI) 
 
-# just download the shapefile we want
+# just download the shapefiles we want
 ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[
-  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeoGLOBE_Simplified_Regions.zip', ]
+  ArchaeoGLOBE_Regions_df$files$filename %in% 
+    c('ArchaeoGLOBE_Simplified_Regions.zip','ArchaeGLOBE_Regions.zip'), ]
 
 # read into local dir
 walk(ArchaeoGLOBE_Regions_df_files$label,
     ~get_file(.x, ArchaeoGLOBE_Regions_DOI) %>% 
       writeBin(paste0('data/raw-data/', .x)))
 
+# unzip the shapefiles
 unzip('data/raw-data/ArchaeoGLOBE_Simplified_Regions.zip', 
       overwrite = TRUE,
       exdir = 'data/raw-data/ArchaeoGLOBE_Simplified_Regions')
+unzip('data/raw-data/ArchaeGLOBE_Regions.zip', 
+      overwrite = TRUE,
+      exdir = 'data/raw-data/ArchaeoGLOBE_Regions')
+```
 
-# read into the current environment, and simplify the polygons for faster plotting
+```{r}
+# read into the current environment
 regions <- st_read('data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp', 
           quiet = TRUE) %>%
   # add labels for just the islands, will make plotting easier in the future
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
+  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% 
+                                                c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
+
+regions_hyde <- st_read('data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
+          quiet = TRUE) %>%
+  # reproject to match HYDE data
+  st_transform('+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
 ```
 
-## Exploratory plots
+Download and import HYDE raster data, version 3.2. Refer to the source .rmd document for the code to download the .zip files from the ftp server. If running for the first time, this will download about 500mb to your computer. 
+
+```{r hyde-download, echo = FALSE}
+# which time steps to download
+time_steps <- c('6000BC', '4000BC', '2000BC', '0AD', 
+                '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
+
+# url of the land use zip files
+hyde_url <- paste0('ftp://ftp.pbl.nl/hyde/hyde3.2/baseline/zip/',
+                    time_steps, '_lu.zip')
+
+# names of the cropland files to extract from the zip files
+hyde_file <- paste0('cropland', time_steps, '.asc')
+
+# if not present in raw-data directory, download land use zip files
+# and extract only the cropland file to the raw-data directory
+get_hyde <- function(url, file){
+  if(!file.exists(paste0('data/raw-data/HYDE/', file))){
+    temp <- tempfile()
+    download.file(url, temp)
+    unzip(temp, files = file, exdir = 'data/raw-data/HYDE', 
+          overwrite = TRUE)
+    unlink(temp)
+  }
+}
+
+# run get_hyde function on the lists of files above
+walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
+```
+
+```{r hyde-import}
+hyde <- list.files('data/raw-data/HYDE', full.names = TRUE, recursive = TRUE) %>%
+  .[c(9:7,1:6)] %>% # temporal order
+  map(raster) %>%
+  brick %>%
+  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+```
+
+# Exploratory visualization
 
 Before running any analyses, let's look at the data. How many responses do we have per region?
 
@@ -117,7 +164,7 @@ a <- regions %>%
   ggplot() +
   geom_sf(aes(fill = n10), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Contributors', guide = 'legend', breaks = seq(2, 10, 2), labels = c(seq(2, 8, 2), '10+')) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
   coord_sf(datum = NA) +
   theme_void() +
   theme(legend.position='bottom')
@@ -158,7 +205,7 @@ sites_plot <- regions %>%
   ggplot() +
   geom_sf(aes(fill = sites), size = .3, color = 'white') +
   scale_fill_viridis_d(name = '', guide = 'legend') +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0, expand = TRUE) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.5, hjust = 0) +
   labs(subtitle = '         Published Excavations') + # extra spaces move the title to the right a bit, needed for multipanel plot below
   coord_sf(datum = NA) +
   theme_void() +
@@ -166,6 +213,14 @@ sites_plot <- regions %>%
 
 sites_plot
 ```
+
+# GAMM Trends
+
+Here we use Generalized Additive Models (GAMs), a flexible form of nonlinear regression model capable of fitting smooth, time-varying trends to the ordered categorical ArchaeoGLOBE response data. We model ordered categorical data using a latent variable following a logistic distribution. The model identifies a series of cut points, which correspond the the probabilities of the latent variable falling within each of our categories.
+
+We fit two sets of trends. One trend is fitted to all the data simultaneously, representing the global trend across all archaeological regions. Then we fit region-level trends, which represent the deviation of each region from the global trend. By penalizing the "wiggliness" of the trend lines, we allow regional trends that don't significantly deviate from the global trend to be penalized to 0, effectively reducing that particular region to the global trend. This is a form of partial pooling, allowing the model to share information between groups and in so doing make the results less sensitive to regions with exceptionally low response rates.
+
+After fitting the model, we can extract the region-specific trends, use a k-means clustering algorithm to group together regions with similar trends, and map the results. We repeat this analysis for both self-reported expertise and perceived data quality.
 
 ## Analysis functions
 
@@ -233,9 +288,7 @@ extract_trends <-function(mod, n_clusters = 6){
 }
 ```
 
-# Analysis
-
-## GAMM trends
+## Analysis
 
 Now we use the functions defined above to estimate trends in ArchaeoGlobe data. For convenience, first define a data frame that lists the prefixes of the variables we are interested in (e.g. "EXP" for expertise) and the levels of the ordered factors associated with each variable. This will make it easier to quickly focus on a specific variable. The `tribble` command is simply a way to make a data frame by row rather than column, which makes the code easier to read.
 
@@ -327,19 +380,15 @@ osf_retrieve_node('gcfs6') %>%
              overwrite = TRUE)
 ```
 
-# Results
+## Results
 
 First we plot out the global trends for each land use type, and compare them to the consensus estimates. Then we plot the local (regional trends) for all land use types, and map out their associated clusters. Please refer to the .rmd source file for the code to make the plots.
+
+### Global Trends
 
 The global trend in foraging shows constant high prevalence until around 6,000 years ago, after which there is a smooth decline until the present day when it is very rare. Mapping out the clusters reveals a clear east-west divide, which regions in Afro-eurasia seeing foraging earlier then the global mean, and regions in the Americas and Oceania seeing later peaks in foraging.
 
 The global trends in the prevalence of pastoralism, extensive and intensive agriculture, and urbanism all follow a sigmoidal curve, which means the trend is linear on the scale of the linear predictor (the ordered categorical GAM uses a logit transform as a latent link function). This means that there is a simple increase in the probability of each land use type being prevalent over time.
-
-How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
-
-The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
-
-## Global Trends
 
 ```{r echo = FALSE, fig.width = 5, fig.height = 6}
 global_trends <- trend_dat %>%
@@ -545,7 +594,7 @@ ggsave('figures/3_trends_global.png', height = 7.5, width = 6.5)
 ```
 
 
-## Regional Trends
+### Regional Trends
 
 ```{r, echo = FALSE}
 plot_trends_landuse <- function(x, variable, tag){
@@ -650,6 +699,9 @@ r4 <- trend_dat[3, ] %>%
 ggsave('figures/4_trends_map_landuse.png', height = 8, width = 12)
 ```
 
+How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
+
+The global trend in data quality is more or less the same as the expertise data, with the peak in data quality occurring more recently than for expertise and with a less dramatic falloff leading to the present day. Unlike expertise, which reaches the same values at 10ky BP and present, data quality in the present day remains high in spite of the falloff in the last 2 millennia. Also note the confidence interval for the global trend is generally wider than for the expertise responses.
 
 ```{r, echo = FALSE, fig.width = 12, fig.height = 8}
 k1 <- trend_dat[1, ] %>%
@@ -806,90 +858,43 @@ Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. 
 
 Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
 
-## HYDE Comparison
+# HYDE Comparison
 
-Plot the onset time for intensive agriculture worldwide, based on ArchaeoGLOBE consensus assessments, at the Common and Widespread levels.
+Here we compare the onset times for intensive agriculture derived from the ArchaeoGLOBE consensus estimates with those calculated from HYDE 3.2 data. We assess these differences at both the Common (>= 1%) and Widespread (>= 20%) levels.
 
-```{r dataverse-shapefile, echo = TRUE}
-# just download the shapefile we want
-ArchaeoGLOBE_Regions_df_files <- ArchaeoGLOBE_Regions_df$files[
-  ArchaeoGLOBE_Regions_df$files$filename == 'ArchaeGLOBE_Regions.zip', ]
+First calculate the total cropland area from HYDE in each of the ArchaeoGLOBE regions, and convert to proportion of land area under cultivation in order to compare HYDE and ArchaeoGLOBE. Be warned the `raster::extract()` command will take a while to run.
 
-# read into local dir
-walk(ArchaeoGLOBE_Regions_df_files$label,
-    ~get_file(.x, ArchaeoGLOBE_Regions_DOI) %>% 
-      writeBin(paste0('data/raw-data/', .x)))
-
-unzip('data/raw-data/ArchaeGLOBE_Regions.zip', 
-      overwrite = TRUE,
-      exdir = 'data/raw-data/ArchaeoGLOBE_Regions')
-
-# read into the current environment, and simplify the polygons for faster plotting
-regions_hyde <- st_read('data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
-          quiet = TRUE) %>%
-  st_transform('+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
-```
-
-Download HYDE data, version 3.2, from the ftp server. This chunk will take about 10 minutes to execute, and download a total of about 500mb of data when finished.
-
-```{r hyde-download}
-# which time steps to download
-time_steps <- c('6000BC', '4000BC', '2000BC', '0AD', 
-                '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
-
-# url of the land use zip files
-hyde_url <- paste0('ftp://ftp.pbl.nl/hyde/hyde3.2/baseline/zip/',
-                    time_steps, '_lu.zip')
-
-# names of the cropland files to extract from the zip files
-hyde_file <- paste0('cropland', time_steps, '.asc')
-
-# if not present in raw-data directory, download land use zip files
-# and extract only the cropland file to the raw-data directory
-get_hyde <- function(url, file){
-  if(!file.exists(paste0('data/raw-data/HYDE/', file))){
-    temp <- tempfile()
-    download.file(url, temp)
-    unzip(temp, files = file, exdir = 'data/raw-data/HYDE', 
-          overwrite = TRUE)
-    unlink(temp)
-  }
-}
-
-# run get_hyde function on the lists of files above
-walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
-```
-
-
-```{r hyde-processing}
-hyde_crops <- list.files('data/raw-data/HYDE', full.names = TRUE, recursive = TRUE) %>%
-  .[c(9:7,1:6)] %>% # may be sensitive to OS settings
-  map(raster) %>%
-  brick %>%
-  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0') %>%
+```{r hyde-crops}
+hyde_crop_prop <- hyde %>%
   raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
   `names<-`(c('ID', -8, -6, -4, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
   gather(time, value, 2:10) %>%
   mutate(time = as.numeric(time)) %>%
   left_join(regions, by = c('ID' = 'Archaeo_ID')) %>%
   mutate(prop = value / Land_Area)
+```
 
-hyde_onset <- hyde_crops %>%
+Calculate the earliest onset time for intensive agriculture at common and widespread thresholds for the HYDE data.
+
+```{r onsets-hyde}
+hyde_onset <- hyde_crop_prop %>%
   filter(prop >= 0.01) %>%
-  mutate(level = if_else(prop >= 0.2, 'Widespread', 
-                                      'Common')) %>%
+  mutate(level = if_else(prop >= 0.2, 'Widespread', 'Common')) %>%
   group_by(ID, level) %>%
   summarise(onset = min(time)) %>%
   spread(level, onset) %>%
   mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
   gather(level, onset, Common:Widespread) %>%
-  mutate(level = if_else(level == 'Common', 
+  mutate(source = 'HYDE',
+         level = if_else(level == 'Common', 
                          'Common (> 1% land area)', 
-                         'Widespread (> 20% land area)'),
-         source = 'HYDE') %>%
+                         'Widespread (> 20% land area)')) %>%
   rename(Region = ID)
+```
 
+Repeat for the ArchaeoGLOBE consensus assessment.
 
+```{r onsets-archaeoglobe}
 archaeoglobe_onset <- consensus %>%
   select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
   gather(time, value, INAG_10KBP:INAG_1850CE) %>%
@@ -905,13 +910,30 @@ archaeoglobe_onset <- consensus %>%
   spread(value, onset) %>%
   mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
   gather(level, onset, Common:Widespread) %>%
-  mutate(level = if_else(level == 'Common', 
+  mutate(source = 'ArchaeoGLOBE',
+         level = if_else(level == 'Common', 
                          'Common (> 1% land area)', 
-                         'Widespread (> 20% land area)'),
-         source = 'ArchaeoGLOBE')
+                         'Widespread (> 20% land area)'))
 ```
 
-```{r fig.width = 4.5, fig.height = 6.5}
+What are the differences in onset times between the two datasets?
+
+```{r}
+# world regions that have crops in HYDE at 2000CE
+hyde_ag_regions <- hyde_crop_prop %>%
+  filter(time == 0.05 & prop >= 0.01) %>%
+  pull(ID)
+
+onset_difference <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
+  spread(source, onset) %>%
+  filter(Region %in% hyde_ag_regions) %>%
+  mutate(diff = ArchaeoGLOBE - HYDE,
+         diff = round(diff))
+```
+
+Plot the results.
+
+```{r echo = FALSE}
 ag_onset_maps <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
   complete(Archaeo_ID, level, source) %>%
@@ -921,7 +943,7 @@ ag_onset_maps <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
   ggplot() +
   geom_sf(aes(fill = onset), size = .3, color = 'white') +
   scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_grid(source ~ level, switch = 'y') +
@@ -931,20 +953,6 @@ ag_onset_maps <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
         legend.text.align = 1,
         legend.key.size = unit(0.5,"line"),
         strip.text.y = element_text(angle = -90))
-```
-
-Differences between HYDE and ArchaeoGLOBE onset times.
-```{r fig.width = 4.5, fig.height = 6.5}
-# world regions that have crops in HYDE at 2000CE
-hyde_ag_regions <- hyde_crops %>%
-  filter(time == 0.05 & prop >= 0.01) %>%
-  pull(ID)
-
-onset_difference <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
-  spread(source, onset) %>%
-  filter(Region %in% hyde_ag_regions) %>%
-  mutate(diff = ArchaeoGLOBE - HYDE,
-         diff = round(diff))
   
 onset_difference_barplot <- 
 ggplot(onset_difference, aes(diff, group = diff)) +
@@ -980,7 +988,7 @@ onset_difference %>%
                        direction = 1, 
                        limits = c(-6, 6)) +
   geom_sf_text(aes(label = region_label), 
-               nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
+               nudge_x = 500000, size = 1.5, hjust = 0) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_wrap(~ level) +
@@ -1008,61 +1016,6 @@ ggsave("figures/ArchaeoGLOBE-HYDE-comparison.png", width = 183, units = "mm")
 # doesn't look good when knit
 knitr::include_graphics("figures/ArchaeoGLOBE-HYDE-comparison.png")
 ```
-
-
-```{r}
-
-ag_join_maps <- 
-ag_join %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
-  ggplot() +
-  geom_sf(aes(fill = time), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  theme_void() +
-  facet_grid(source ~ level, switch = 'y') +
-  theme(legend.position = c(0.52, 0.5), 
-        legend.title=element_text(size=8), 
-        legend.text=element_text(size=6), 
-        legend.text.align = 1,
-        legend.key.size = unit(0.5,"line"),
-        strip.text.y = element_text(angle = -90)) 
-
-onset_difference_maps <- 
-onset_difference %>%   
-  left_join(regions, ., by = c('Archaeo_ID' = 'RegionID')) %>%
-  ggplot() +
-  geom_sf(aes(fill = diff), size = .3, color = 'white') +
-  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
-                       guide = 'colorbar', 
-                       palette = 'PuOr', 
-                       direction = 1, 
-                       limits = c(-6, 6)) +
-  geom_sf_text(aes(label = region_label), 
-               nudge_x = 500000, size = 1.5, hjust = 0, expand = TRUE) +
-  coord_sf(datum = NA) +
-  theme_void() +
-  facet_wrap(~ level) +
-  theme(legend.position = c(0.50, 0.70), 
-        legend.title=element_text(size=8), 
-        legend.text=element_text(size=6),
-        legend.text.align = 1,
-        legend.key.size = unit(0.5,"line")) +
-  guides(fill = guide_colorbar(title.position = "top"))
-
-
-  
-```
-
-
-
-
-
-
-
-
-
 
 
 
