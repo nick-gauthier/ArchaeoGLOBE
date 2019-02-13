@@ -830,12 +830,41 @@ regions_hyde <- st_read('data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.
   st_transform('+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
 ```
 
+Download HYDE data, version 3.2, from the ftp server. This chunk will take about 10 minutes to execute, and download a total of about 500mb of data when finished.
+
+```{r hyde-download}
+# which time steps to download
+time_steps <- c('6000BC', '4000BC', '2000BC', '0AD', 
+                '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
+
+# url of the land use zip files
+hyde_url <- paste0('ftp://ftp.pbl.nl/hyde/hyde3.2/baseline/zip/',
+                    time_steps, '_lu.zip')
+
+# names of the cropland files to extract from the zip files
+hyde_file <- paste0('cropland', time_steps, '.asc')
+
+# if not present in raw-data directory, download land use zip files
+# and extract only the cropland file to the raw-data directory
+get_hyde <- function(url, file){
+  if(!file.exists(paste0('data/raw-data/HYDE/', file))){
+    temp <- tempfile()
+    download.file(url, temp)
+    unzip(temp, files = file, exdir = 'data/raw-data/HYDE', 
+          overwrite = TRUE)
+    unlink(temp)
+  }
+}
+
+# run get_hyde function on the lists of files above
+walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
+```
+
+
 ```{r hyde-processing}
-## need to use rcurl or something to download hyde directly
-hyde_crops <- list.files('../HYDE/', full.names = TRUE, recursive = TRUE) %>%
-  .[str_detect(., 'cropland')] %>% # get just the cropland files
+hyde_crops <- list.files('data/raw-data/HYDE', full.names = TRUE, recursive = TRUE) %>%
+  .[c(9:7,1:6)] %>% # may be sensitive to OS settings
   map(raster) %>%
-  .[c(9:7,1:6)] %>% # hacky solution to fix later, sensitive to OS settings
   brick %>%
   `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0') %>%
   raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
