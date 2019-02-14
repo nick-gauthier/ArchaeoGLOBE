@@ -738,7 +738,9 @@ ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
 ```
 
 
-## Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
+# Abandonment of Foraging
+
+Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
 
 To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we computed an odds ratio using the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. Odds ratios are used to compare the relative odds of the occurrence of an outcome of interest (i.e spread of pastoralism), given a condition of the variable of interest (i.e. abandonment of widespread foraging) (Szumilas 2010). We created a table of counts of regions that show a decline in foraging over time, and counts of regions where pastoralism is more widespread than intensive agriculture at an arbitrary time point, such as 2 k BP. We then computed an odds ratio for this table, and if the result is greater than one, we can conclude that the outcome of pastoralism more widespread than crop agriculture after widespread foraging is abandoned is more likely that an alternative outcome.  
 
