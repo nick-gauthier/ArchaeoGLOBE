@@ -740,7 +740,7 @@ ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
 
 ## Was the abandonment of widespread foraging more correlated closely with the spread of pastoralism than crop agriculture?
 
-We generated a structural equation model to estimate parameters for a path schematic to test hypotheses about causal relationships between latent variables in the consensus land use data. Structural equation modeling is a multivariate statistical method for analyzing structural relationships that include latent variables (Bollen 1989, Beaujean 2014). The consensus data were recoded to ordinal factors and then input to a diagonally weighted least squares procedure to estimate the structural equation model parameters. To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we modeled the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. We used the lavaan R package (Rosseel 2012) to fit a model with a Model Fit Test Statistic of 75.199, 18 degrees of freedom. The model fit is good, as indicated by a Comparative Fit Index (CFI) 0.997 and a Root Mean Square Error of Approximation (RMSEA) of 0.148. The model output shows a regression estimate of -0.674 for foraging and pastoralism, compared to -0.574 for foraging and crop agriculture. The regression coefficient of foraging predicting pastoralism is more negative than foraging predicting crop agriculture, indicating that as foraging was abandoned it was more often replaced by pastoralism than crop agriculture. 
+To investigate weather the abandonment of widespread foraging was more correlated closely with the spread of pastoralism than crop agriculture, we computed an odds ratio using the consensus responses for foraging, pastoralism and crop agriculture for all regions during the middle and late Holocene. Odds ratios are used to compare the relative odds of the occurrence of an outcome of interest (i.e spread of pastoralism), given a condition of the variable of interest (i.e. abandonment of widespread foraging) (Szumilas 2010). We created a table of counts of regions that show a decline in foraging over time, and counts of regions where pastoralism is more widespread than intensive agriculture at an arbitrary time point, such as 2 k BP. We then computed an odds ratio for this table, and if the result is greater than one, we can conclude that the outcome of pastoralism more widespread than crop agriculture after widespread foraging is abandoned is more likely that an alternative outcome.  
 
 ```{r}
 consensus_cat <- 
@@ -754,45 +754,6 @@ consensus_cat <-
   mutate_at(.vars = vars(FHG_10KBP:URBAN_1850CE), 
             .funs = funs(factor(., ordered = TRUE)))
 
-mod.sem1 <- '
-# latent variable definitions
-hunt  =~ 0 * FHG_6KBP  + 1 *  FHG_4KBP  + 2 * FHG_3KBP
-past  =~ 0 * PAS_6KBP  + 1 * PAS_4KBP   + 2 * PAS_3KBP
-crop  =~ 0 * INAG_6KBP + 1 * INAG_4KBP  + 2 * INAG_3KBP
-# regressions
-past ~ hunt
-crop ~ hunt
-# residual correlations
-FHG_6KBP ~~ PAS_6KBP + INAG_6KBP
-FHG_4KBP ~~ PAS_4KBP + INAG_4KBP
-FHG_3KBP ~~ PAS_3KBP + INAG_3KBP
-'
-
-
-library(lavaan)
-sem.fit <- sem(mod.sem1, 
-               data = consensus_cat[,-c(1:2)])
-# inspect the summary
-summary(sem.fit,
-        fit.measures=TRUE, 
-        standardized = TRUE)
-
-# modificationindices(sem.fit, sort = TRUE)
-
-# look at the diagram:
-png("figures/lavaan.diagram.png")
-psych::lavaan.diagram(sem.fit)
-dev.off()
-
-knitr::include_graphics("figures/lavaan.diagram.png")
-
-```
-
-Structural equation modelling shows that a causal inference of abandonment of widespread foraging correlating more closely with the spread of pastoralism than crop agriculture is consistent with the data.
-
-We can also investigate this using an odds ratio approach. We can create a table of counts of regions that show a decline in foraging over time, and counts of regions where pastoralism is more widespread than intensive agriculture at an arbitrary time point, such as 2 k BP. We can then compute an odds ratio for this table, and if the result is greater than one, we can conclude that the outcome of  pastoralism more widespread than crop agriculture after widespread foraging is abandoned is more likely that the alternative outcome.  
-
-```{r}
 # odds ratio approach
 consensus_cat_df <- 
 consensus_cat %>% 
@@ -853,12 +814,7 @@ or <- (A/B) / (C/D)
 
 The odds ratio for this table is `r round(or, 3)`, with a p-value of `r p_value`. This indicates that that claim of pastoralism being more widespread than crop agriculture after widespread foraging is abandoned is supported by the data. 
 
-
-Bollen, K. A. (1989). Structural Equations with Latent Variables (Wiley Series in Probability and Statistics, Canada
-
-Beaujean, A. A. (2014). Latent variable modeling using R: A step-by-step guide. Routledge.
-
-Rosseel, Y. (2012). Lavaan: An R package for structural equation modeling and more. Version 0.5–12 (BETA). Journal of statistical software, 48(2), 1-36.
+Szumilas, Magdalena (2010). "Explaining Odds Ratios". _Journal of the Canadian Academy of Child and Adolescent Psychiatry_. 19 (3): 227–229
 
 # HYDE Comparison
 
