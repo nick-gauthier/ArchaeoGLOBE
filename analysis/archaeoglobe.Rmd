@@ -113,7 +113,7 @@ Download and import HYDE raster data, version 3.2. Refer to the source .rmd docu
 
 ```{r hyde-download, echo = FALSE}
 # which time steps to download
-time_steps <- c('6000BC', '4000BC', '2000BC', '0AD', 
+time_steps <- c('8000BC', '6000BC', '4000BC', '2000BC', '1000BC', '0AD', 
                 '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
 
 # url of the land use zip files
@@ -140,8 +140,8 @@ walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
 ```
 
 ```{r hyde-import}
-hyde <- list.files('data/raw-data/HYDE', full.names = TRUE, recursive = TRUE) %>%
-  .[c(9:7,1:6)] %>% # temporal order
+hyde <- list.files('data/raw-data/HYDE', full.names = TRUE) %>%
+  .[c(11:8, 3, 1:2, 4:7)] %>% # temporal order
   map(raster) %>%
   brick %>%
   `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
@@ -344,7 +344,9 @@ trend_dat <- response_levels %>%
          n_cats = map_dbl(categories, length), 
          mod = map2(data, n_cats, fit_gam),
          trends = map(mod, extract_trends))
+```
 
+```{r eval = rerun_time_consuming_analysis, echo = FALSE}
 # save to disk
 saveRDS(trend_dat, file = 'data/derived-data/trend_dat.rda')
 
@@ -867,8 +869,8 @@ First calculate the total cropland area from HYDE in each of the ArchaeoGLOBE re
 ```{r hyde-crops}
 hyde_crop_prop <- hyde %>%
   raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
-  `names<-`(c('ID', -8, -6, -4, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
-  gather(time, value, 2:10) %>%
+  `names<-`(c('ID', -10, -8, -6, -4, -3, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
+  gather(time, value, 2:12) %>%
   mutate(time = as.numeric(time)) %>%
   left_join(regions, by = c('ID' = 'Archaeo_ID')) %>%
   mutate(prop = value / Land_Area)
@@ -897,12 +899,12 @@ Repeat for the ArchaeoGLOBE consensus assessment.
 ```{r onsets-archaeoglobe}
 archaeoglobe_onset <- consensus %>%
   select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
-  gather(time, value, INAG_10KBP:INAG_1850CE) %>%
+  gather(time_step, value, INAG_10KBP:INAG_1850CE) %>%
   filter(value %in% c('Common', 'Widespread')) %>%
-  mutate(time = parse_number(time),
-         time = case_when(time == 1500 ~ .5,
-                          time == 1750 ~ .25,
-                          time == 1850 ~ .15,
+  mutate(time = parse_number(time_step),
+         time = case_when(time == 1500 ~ .45,
+                          time == 1750 ~ .2,
+                          time == 1850 ~ .1,
                           time <= 10 ~ time),
          time = time * -1) %>%
   group_by(Region, value) %>%
@@ -916,6 +918,12 @@ archaeoglobe_onset <- consensus %>%
                          'Widespread (> 20% land area)'))
 ```
 
+Combine into a single data frame.
+
+```{r}
+onsets <- bind_rows(hyde_onset, archaeoglobe_onset)
+```
+
 What are the differences in onset times between the two datasets?
 
 ```{r}
@@ -924,7 +932,7 @@ hyde_ag_regions <- hyde_crop_prop %>%
   filter(time == 0.05 & prop >= 0.01) %>%
   pull(ID)
 
-onset_difference <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
+onset_difference <- onsets %>%
   spread(source, onset) %>%
   filter(Region %in% hyde_ag_regions) %>%
   mutate(diff = ArchaeoGLOBE - HYDE,
@@ -934,32 +942,61 @@ onset_difference <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
 Plot the results.
 
 ```{r echo = FALSE}
-ag_onset_maps <- bind_rows(hyde_onset, archaeoglobe_onset) %>%
+onset_maps <- onsets %>%
   left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
   complete(Archaeo_ID, level, source) %>%
   filter(!is.na(level) & !is.na(source)) %>%
   select(Archaeo_ID, level, source, onset) %>%
   left_join(regions, .) %>%
   ggplot() +
-  geom_sf(aes(fill = onset), size = .3, color = 'white') +
-  scale_fill_viridis_c(name = 'Thousand\nyears BP', guide = 'colorbar') +
+  geom_sf(aes(fill = as.ordered(onset)), size = .3, color = 'white') +
+  scale_fill_viridis_d(name = 'Onset timestep', na.value = 'lightgray',
+                       labels = c('8000BP', '6000BP', '4000BP', '3000BP', '2000BP',
+                                  '1000BP', '1500CE', '1750CE', '1850CE', '2000CE', 'None')) +
   geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0) +
   coord_sf(datum = NA) +
   theme_void() +
   facet_grid(source ~ level, switch = 'y') +
-  theme(legend.position = c(0.52, 0.5), 
+  theme(legend.position = 'bottom', 
         legend.title=element_text(size=8), 
         legend.text=element_text(size=6), 
         legend.text.align = 1,
         legend.key.size = unit(0.5,"line"),
         strip.text.y = element_text(angle = -90))
-  
-onset_difference_barplot <- 
-ggplot(onset_difference, aes(diff, group = diff)) +
+
+onset_diff_maps <- onset_difference %>%   
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level) %>%
+  filter(!is.na(level)) %>%
+  select(Archaeo_ID, level, diff) %>%
+  left_join(regions, .) %>%
+  ggplot() +
+  geom_sf(aes(fill = diff), size = .3, color = 'white') +
+  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
+                       guide = 'colorbar', 
+                       palette = 'PuOr', 
+                       direction = 1, 
+                       limits = c(-6, 6),
+                        na.value = 'lightgray') +
+  geom_sf_text(aes(label = region_label), 
+               nudge_x = 500000, size = 1.5, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_wrap(~ level) +
+  theme(legend.position = c(0.50, 0.70), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6),
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
+
+onset_diff_barplot <- 
+  ggplot(onset_difference, aes(diff, group = diff)) +
   geom_bar(aes(fill = diff)) +
   scale_fill_distiller(palette = 'PuOr', 
                        limits = c(-6,6),
-                       name = 'Onset\ndifference (ka)') +
+                       name = 'Onset\ndifference (ka)', 
+                       direction = 1) +
   facet_wrap(~level) +
   theme_minimal() +
   labs(x = 'Onset\ndifference (ka)',
@@ -972,49 +1009,22 @@ ggplot(onset_difference, aes(diff, group = diff)) +
         legend.direction="horizontal",
         legend.key.size = unit(0.5,"line")) +
   guides(fill = guide_colorbar(title.position = "top"))
-
-onset_difference_maps <- 
-onset_difference %>%   
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  complete(Archaeo_ID, level) %>%
-  filter(!is.na(level)) %>%
-  select(Archaeo_ID, level, diff) %>%
-  left_join(regions, .) %>%
-  ggplot() +
-  geom_sf(aes(fill = diff), size = .3, color = 'white') +
-  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
-                       guide = 'colorbar', 
-                       palette = 'PuOr', 
-                       direction = 1, 
-                       limits = c(-6, 6)) +
-  geom_sf_text(aes(label = region_label), 
-               nudge_x = 500000, size = 1.5, hjust = 0) +
-  coord_sf(datum = NA) +
-  theme_void() +
-  facet_wrap(~ level) +
-  theme(legend.position = c(0.50, 0.70), 
-        legend.title=element_text(size=8), 
-        legend.text=element_text(size=6),
-        legend.text.align = 1,
-        legend.key.size = unit(0.5,"line")) +
-  guides(fill = guide_colorbar(title.position = "top"))
 ```
 
-```{r results='hide', fig.width = 4.5, fig.height = 6.5}
+```{r results='hide', fig.width = 6.5, fig.height = 7.5}
 # put the figs together for the ArchaeoGLOBE-HYDE comparison
 # looks good when run interactively, but not when knit
 
-(ag_onset_maps  / onset_difference_maps / onset_difference_barplot) + 
+(onset_maps / onset_diff_maps / onset_diff_barplot) + 
   plot_layout(heights = c(2, 1, 1)) +
   plot_annotation(tag_levels = "A")
 
-ggsave("figures/ArchaeoGLOBE-HYDE-comparison.png", width = 183, units = "mm")
-
+ggsave("figures/5_ArchaeoGLOBE_HYDE_comparison.png", width = 6.5, height = 7.5)
 ```
 
-```{r fig.width = 4.5, fig.height = 6.5}
+```{r fig.width = 6.5, fig.height = 7.5}
 # doesn't look good when knit
-knitr::include_graphics("figures/ArchaeoGLOBE-HYDE-comparison.png")
+knitr::include_graphics("figures/5_ArchaeoGLOBE_HYDE_comparison.png")
 ```
 
 
