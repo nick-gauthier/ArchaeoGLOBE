@@ -32,7 +32,7 @@ library(sf)
 library(ggplot2)
 library(dataverse)
 
-#install patchwork  and osfr from github if needed
+#install patchwork and osfr from github if needed
 #devtools::install_github('thomasp85/patchwork')
 library(patchwork)
 # devtools::install_github('centerforopenscience/osfr')
@@ -45,7 +45,7 @@ Download all data necessary for the analysis and import into R. By default, the 
 
 Read in the latest version of the ArchaeoGLOBE database and the consensus assessment from the Dataverse repository. Refer to the source .rmd document for the code to download the shapefiles from the Dataverse repository.
 
-```{r dataverse-database, echo = FALSE}
+```{r, dataverse-database, echo = FALSE}
 Sys.setenv('DATAVERSE_SERVER' = 'dataverse.harvard.edu')
 
 # get data frame of files on dataverse
@@ -63,14 +63,14 @@ walk(ArchaeoGLOBE_Data_df_files$label,
        writeBin(paste0('data/raw-data/', .x)))
 ```
 
-```{r}
+```{r, load-data}
 archaeoglobe <- read_csv('data/raw-data/ARCHAEOGLOBE_PUBLIC_DATA.tab')
 consensus <- read_csv('data/raw-data/ARCHAEOGLOBE_CONSENSUS_ASSESSMENT.tab')
 ```
 
-Repeat for the archaeological regions shapefile. We'll use the "simplified regions" shapefile for plotting purposes, and the original shapefile for the ArchaeoGLOBE -- HYDE comparison at the end of this notebook. Refer to the source .rmd document for the code to download the shapefiles from the Dataverse repository.
+Repeat for the archaeological regions shapefile. We'll use the "simplified regions" shapefile for plotting purposes, and the original shapefile for the ArchaeoGLOBE -- HYDE -- kk10 comparison at the end of this notebook. Refer to the source .rmd document for the code to download the shapefiles from the Dataverse repository.
 
-```{r dataverse-shapefile-download, echo = FALSE}
+```{r, dataverse-shapefile-download, echo = FALSE}
 ArchaeoGLOBE_Regions_DOI <- 'doi:10.7910/DVN/CQWUBI'
 
 # get data frame of files on DV
@@ -95,56 +95,18 @@ unzip('data/raw-data/ArchaeGLOBE_Regions.zip',
       exdir = 'data/raw-data/ArchaeoGLOBE_Regions')
 ```
 
-```{r}
+```{r, read-shp}
 # read into the current environment
 regions <- st_read('data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp', 
           quiet = TRUE) %>%
   # add labels for just the islands, will make plotting easier in the future
-  mutate(region_label = replace(Archaeo_RG, !(Archaeo_RG %in% 
-                                                c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
+  mutate(region_label = replace(Archaeo_RG, 
+                                !(Archaeo_RG %in% c('Hawaii','Polynesia','Micronesia','Melanesia')), NA))
 
 regions_hyde <- st_read('data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.shp', 
           quiet = TRUE) %>%
   # reproject to match HYDE data
   st_transform('+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
-```
-
-Download and import HYDE raster data, version 3.2. Refer to the source .rmd document for the code to download the .zip files from the ftp server. If running for the first time, this will download about 500mb to your computer. 
-
-```{r hyde-download, echo = FALSE}
-# which time steps to download
-time_steps <- c('8000BC', '6000BC', '4000BC', '2000BC', '1000BC', '0AD', 
-                '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
-
-# url of the land use zip files
-hyde_url <- paste0('ftp://ftp.pbl.nl/hyde/hyde3.2/baseline/zip/',
-                    time_steps, '_lu.zip')
-
-# names of the cropland files to extract from the zip files
-hyde_file <- paste0('cropland', time_steps, '.asc')
-
-# if not present in raw-data directory, download land use zip files
-# and extract only the cropland file to the raw-data directory
-get_hyde <- function(url, file){
-  if(!file.exists(paste0('data/raw-data/HYDE/', file))){
-    temp <- tempfile()
-    download.file(url, temp)
-    unzip(temp, files = file, exdir = 'data/raw-data/HYDE', 
-          overwrite = TRUE)
-    unlink(temp)
-  }
-}
-
-# run get_hyde function on the lists of files above
-walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
-```
-
-```{r hyde-import}
-hyde <- list.files('data/raw-data/HYDE', full.names = TRUE) %>%
-  .[c(11:8, 3, 1:2, 4:7)] %>% # temporal order
-  map(raster) %>%
-  brick %>%
-  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
 ```
 
 # Exploratory visualization
@@ -179,7 +141,7 @@ a + b + plot_layout(ncol = 1, heights = c(2,1)) + plot_annotation(tag_levels = '
 ggsave('figures/1_response_distribution.png', width = 6.5, height = 5.5)
 ```
 
-How many published archaeolgical excavations are estimated for each region?
+How many published archaeological excavations are estimated for each region?
 
 ```{r}
 # a function for calculating the mode, from https://stackoverflow.com/a/46846474
@@ -212,6 +174,115 @@ sites_plot <- regions %>%
   theme(legend.position = 'bottom')
 
 sites_plot
+```
+    
+## Consensus Assessment
+
+Plot the consensus assessment data for each land-use type.
+```{r, echo = FALSE}
+# make the consenus data easier to plot
+cons_plots <- consensus %>%
+  gather(time_step, level, FHG_10KBP:URBAN_1850CE) %>%
+  separate(time_step, c('type', 'time_step')) %>%
+  mutate(time_step = fct_relevel(time_step, c('10KBP', '8KBP', '6KBP', '4KBP', '3KBP', '2KBP', '1KBP', '1500CE', '1750CE', '1850CE')),
+         time_step = fct_recode(time_step, `10,000 BP` = '10KBP', `10,000 BP` = '10kbp',
+                                `8,000 BP` = '8KBP', `8,000 BP` = '8kbp',  
+                                `6,000 BP` = '6KBP', `6,000 BP` = '6kbp',
+                                `4,000 BP` = '4KBP', `4,000 BP` = '4kbp',
+                                `3,000 BP` = '3KBP', `3,000 BP` = '3kbp', 
+                                `2,000 BP` = '2KBP', `2,000 BP` = '2kbp',
+                                `1,000 BP` = '1KBP', `1,000 BP` = '1kbp', 
+                                `1500 CE` = '1500CE', `1750 CE` = '1750CE', `1850 CE` = '1850CE')) %>%
+      left_join(regions, ., by = c('Archaeo_ID' = 'Region'))
+```
+
+```{r, fig.height=12, fig.width = 8,echo=FALSE}
+cons_plots %>%
+  filter(str_detect(type, 'FHG')) %>%
+  mutate(level = as.ordered(fct_relevel(level, c('None', 'Minimal', 'Common', 'Widespread'))),
+         Prevalence = fct_recode(level, `Minimal (<1%)` = 'Minimal', `Common (1-20%)` = 'Common', `Widespread (>20%)` = 'Widespread')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Prevalence), size = .3) +
+  facet_wrap(~time_step, ncol = 2) +
+    geom_sf_text(aes(label = region_label),nudge_x = 500000, size =2.15, hjust = 0) +
+  scale_fill_brewer(palette = 'BuGn') +
+  ggtitle('Foraging/Hunting/Gathering', 'Consensus Assessment') +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position = 'bottom')
+
+ggsave('figures/S1_FHG_consensus.png', height = 12, width = 8)
+```
+
+```{r, fig.height=12, fig.width = 8,echo=FALSE}
+cons_plots %>%
+  filter(str_detect(type, 'EXAG')) %>%
+  mutate(level = as.ordered(fct_relevel(level, c('None', 'Minimal', 'Common', 'Widespread'))),
+         Prevalence = fct_recode(level, `Minimal (<1%)` = 'Minimal', `Common (1-20%)` = 'Common', `Widespread (>20%)` = 'Widespread')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Prevalence), size = .3) +
+  facet_wrap(~time_step, ncol = 2) +
+    geom_sf_text(aes(label = region_label),nudge_x = 500000, size =2.15, hjust = 0) +
+  scale_fill_brewer(palette = 'PuBu') +
+  ggtitle('Extensive Agriculture', 'Consensus Assessment') +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position = 'bottom')
+
+ggsave('figures/S2_EXAG_consensus.png', height = 12, width = 8)
+```
+
+```{r, fig.height=12, fig.width = 8,echo=FALSE}
+cons_plots %>%
+  filter(str_detect(type, 'INAG')) %>%
+  mutate(level = as.ordered(fct_relevel(level, c('None', 'Minimal', 'Common', 'Widespread'))),
+         Prevalence = fct_recode(level, `Minimal (<1%)` = 'Minimal', `Common (1-20%)` = 'Common', `Widespread (>20%)` = 'Widespread')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Prevalence), size = .3) +
+  facet_wrap(~time_step, ncol = 2) +
+    geom_sf_text(aes(label = region_label),nudge_x = 500000, size =2.15, hjust = 0) +
+  scale_fill_brewer(palette = 'BuPu') +
+  ggtitle('Intensive Agriculture', 'Consensus Assessment') +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position = 'bottom')
+
+ggsave('figures/S3_INAG_consensus.png', height = 12, width = 8)
+```
+
+```{r, fig.height=12, fig.width = 8,echo=FALSE}
+cons_plots %>%
+  filter(str_detect(type, 'PAS')) %>%
+  mutate(level = as.ordered(fct_relevel(level, c('None', 'Minimal', 'Common', 'Widespread'))),
+         Prevalence = fct_recode(level, `Minimal (<1%)` = 'Minimal', `Common (1-20%)` = 'Common', `Widespread (>20%)` = 'Widespread')) %>%
+  ggplot() +
+  geom_sf(aes(fill = Prevalence), size = .3) +
+  facet_wrap(~time_step, ncol = 2) +
+    geom_sf_text(aes(label = region_label),nudge_x = 500000, size =2.15, hjust = 0) +
+  scale_fill_brewer(palette = 'Oranges') +
+  ggtitle('Pastoralism', 'Consensus Assessment') +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position = 'bottom')
+
+ggsave('figures/S4_PAS_consensus.png', height = 12, width = 8)
+```
+
+```{r, fig.height=12, fig.width = 8,echo=FALSE}
+cons_plots %>%
+  filter(str_detect(type, 'URBAN')) %>%
+  mutate(Presence = as.ordered(fct_relevel(level, c('Absent', 'Split', 'Present')))) %>%
+  ggplot() +
+  geom_sf(aes(fill = Presence), size = .3) +
+  facet_wrap(~time_step, ncol = 2) +
+    geom_sf_text(aes(label = region_label),nudge_x = 500000, size =2.15, hjust = 0) +
+  scale_fill_manual(values = c('#f0f0f0', '#feb24c', '#f03b20')) +
+  ggtitle('Urban Centers', 'Consensus Assessment') +
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.position = 'bottom')
+
+ggsave('figures/S5_URBAN_consensus.png', height = 12, width = 8)
 ```
 
 # GAMM Trends
@@ -290,7 +361,7 @@ extract_trends <-function(mod, n_clusters = 6){
 
 ## Analysis
 
-Now we use the functions defined above to estimate trends in ArchaeoGlobe data. For convenience, first define a data frame that lists the prefixes of the variables we are interested in (e.g. "EXP" for expertise) and the levels of the ordered factors associated with each variable. This will make it easier to quickly focus on a specific variable. The `tribble` command is simply a way to make a data frame by row rather than column, which makes the code easier to read.
+Now we use the functions defined above to estimate trends in ArchaeoGLOBE data. For convenience, first define a data frame that lists the prefixes of the variables we are interested in (e.g. "EXP" for expertise) and the levels of the ordered factors associated with each variable. This will make it easier to quickly focus on a specific variable. The `tribble` command is simply a way to make a data frame by row rather than column, which makes the code easier to read.
 
 ```{r}
 response_levels <- tribble(
@@ -423,7 +494,7 @@ ggplot(aes(time, fit, group = type)) +
   scale_color_manual(guide = FALSE, values = trend_colors) +
   scale_fill_manual(guide = FALSE, values = trend_colors) +
   scale_x_continuous(breaks = c(-10, -8,-6,-4,-2,0), minor_breaks = NULL) +
-  scale_y_continuous(breaks = c(0,1), labels = c('Low', 'High'), limits = c(0,1)) +
+  scale_y_continuous(breaks = c(0,1), labels = c('None', 'Widespread'), limits = c(0,1)) +
   labs(x = 'Thousand years BP', y = 'Land-use extent\n') +
   theme_bw() +
   theme(strip.background = element_blank()) +
@@ -514,7 +585,7 @@ cp4 <- global_trends %>%
 cp1 + cp2 + cp3 + cp4
 ```
 
-Compare the global trends to the consensus assessments.
+Compare the global trends to the consensus assessments. To do this, we first need to calculate the cumulative changes in land-use extent for each type.
 
 ```{r consensus_cumsum, echo = FALSE}
 cumsum_landuse_regions <- consensus %>% 
@@ -589,15 +660,18 @@ cs2 <- ggplot(cumsum_landuse_regions,
 cs1 / cs2 + plot_annotation(tag_levels = 'A')
 ```
 
+Now plot the two analyses (GAM and consensus) together.
+
 ```{r, fig.height = 7.5, fig.width = 6}
 (g1 + theme_minimal()) / cs1 + plot_annotation(tag_levels = 'A')
 
-ggsave('figures/3_trends_global.png', height = 7.5, width = 6.5)
+ggsave('figures/3_trends_global.png', height = 7.5, width = 7)
 ```
 
 
 ### Regional Trends
 
+Now we can break down the land-use trends by region.
 ```{r, echo = FALSE}
 plot_trends_landuse <- function(x, variable, tag){
   rt1 <- x$trends[[1]] %>%
@@ -698,7 +772,7 @@ r4 <- trend_dat[3, ] %>%
 
 (r1 | r2 ) / (r3 | r4)
 
-ggsave('figures/4_trends_map_landuse.png', height = 8, width = 12)
+ggsave('figures/S6_trends_map_landuse.png', height = 8, width = 12)
 ```
 
 How does self-professed level of expertise vary in each region over time? The global trend is a roughly linear increase in self-reported expertise from 10ka BP up to 2ka BP, then a falloff continuing to the present day. The present day expertise values are approximately the same as at 10ka BP. This makes sense, as it points to both the increased frequency of preserved archaeological materials with time as well as the reduction in archaeological attention in periods with extensive historical records.
@@ -713,12 +787,14 @@ k1 <- trend_dat[1, ] %>%
                                  `5` = '4', `4` = '5', `6` = '6')))) %>%
   plot_trends_knowledge('Expertise', tag = 'A')
 
+
 k2 <- trend_dat[2, ] %>%
   mutate(trends = map(trends, ~mutate(., 
                                   cluster = recode_factor(cluster, 
                                  `3` = '1', `2` = '2',`6` = '3', 
                                  `1` = '4', `5` = '5', `4` = '6')))) %>%
-  plot_trends_knowledge('Data Quality', tag = 'B')
+  plot_trends_knowledge('Data Quality', tag = 'B') +
+      scale_y_continuous(breaks = c(0,1), labels = c('Unknown', 'Good'))
 
 g2 <- global_trends %>%
   filter(prefix %in% c('EXP', 'DQ')) %>%
@@ -735,6 +811,426 @@ ggplot(aes(time, fit, group = type)) +
 (k1 | k2) / (g2 + sites_plot + labs(tag = 'D') + plot_layout(widths = c(.9, 1))) + plot_layout(heights = c(1, .7))
 
 ggsave('figures/2_trends_map_knowledge.png', height = 8, width = 12)
+```
+
+# Onset and decline timing
+
+Next we visualize the timing of the onset of extensive and intensive agriculture, pastoralism, and urbanism for each region, as well as the timing of the initial decline in foraging.
+```{r consensus-transitions}
+consensus_transitions <- consensus %>%
+  # get consensus data into a form to calculate onset timings
+  select(Region, Label, FHG_10KBP:URBAN_1850CE) %>%
+  gather(time_step, level, FHG_10KBP:URBAN_1850CE) %>%
+  separate(time_step, c('type', 'time_step')) %>%
+  mutate(time = parse_number(time_step),
+         time = case_when(time == 1500 ~ .45,
+                          time == 1750 ~ .2,
+                          time == 1850 ~ .1,
+                          time <= 10 ~ time),
+         time = time * -1,
+         type = fct_relevel(type, 'EXAG', 'INAG', 'PAS', 'URBAN', 'FHG'),
+         type = fct_recode(type, `Extensive agriculture` = 'EXAG',
+                          #some EXAG entries are spelled EXAGR, this fixes that
+                          `Extensive agriculture` = 'EXAGR',
+                          `Intensive agriculture` = 'INAG',
+                          `Pastoralism` = 'PAS',
+                          `Urbanism` = 'URBAN',
+                          `Foraging` = 'FHG')) %>%
+  filter(level %in% c('Common', 'Widespread', 'Present')) %>%
+  group_by(Region, type) %>%
+  summarise(onset = min(time), # calculate onset timing
+            decline = max(time)) %>% # calculate decline timing
+  ungroup %>%
+  # join to region data for plotting
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  # join to regions one more time for NA regions
+  complete(Archaeo_ID, type) %>%
+  select(Archaeo_ID, type, onset, decline) %>%
+  left_join(regions, .)
+```
+
+```{r, fig.width=9, fig.height = 7, echo = FALSE}
+a <- consensus_transitions %>%
+  mutate(onset = as.ordered(onset)) %>%
+  filter(type != 'Foraging') %>%
+ggplot() +
+  geom_sf(aes(fill = onset), size = .3, color = 'white') +
+  scale_fill_brewer(palette = 'PuOr', name = 'Onset', na.value = 'darkgray', 
+                       labels = c('10000 BP', '8000 BP', '6000 BP', '4000 BP', '3000 BP', '2000 BP',
+                                  '1000 BP', '1500 CE', '1750 CE', '1850 CE', 'None')) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.15, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  labs(subtitle = 'A') +
+  facet_wrap(~type, nrow = 3) +
+   theme(strip.text = element_text(angle = 0, hjust = 0))
+
+
+b <- consensus_transitions %>%
+  mutate(decline = as.ordered(decline)) %>%
+  filter(type == 'Foraging') %>%
+ggplot() +
+  geom_sf(aes(fill = decline), size = .3, color = 'white') +
+  scale_fill_brewer(palette = 'BrBG', name = 'Decline', na.value = 'darkgray',
+                       labels = c('10000 BP', '8000 BP', '6000 BP', '4000 BP', '3000 BP', '2000 BP',
+                                  '1000 BP', '1500 CE', '1750 CE', '1850 CE', 'None')) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 2.15, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  labs(subtitle = 'B')+
+  facet_wrap(~type) +
+  theme(strip.text = element_text(angle = 0, hjust = 0)) +
+  guides(fill=guide_legend(nrow=5, byrow = F))
+
+a / (b + plot_spacer() + plot_layout(widths = c(2.75, 1))) + plot_layout(heights = c(2.2, 1)) 
+
+ggsave('figures/4_consensus_transitions.png', width = 9, height = 7)
+```
+
+
+# HYDE Comparison
+
+Here we compare the onset times for intensive agriculture derived from the ArchaeoGLOBE consensus estimates with those calculated from HYDE 3.2 data. We assess these differences at both the Common (>= 1%) and Widespread (>= 20%) levels.
+
+Download and import HYDE 3.2 land-use reconstruction. Refer to the source .rmd document for the code to download the .zip files from the ftp server. If running for the first time, this will download about 500mb to your computer. 
+
+```{r hyde-download, echo = FALSE, eval = FALSE}
+# which time steps to download
+time_steps <- c('8000BC', '6000BC', '4000BC', '2000BC', '1000BC', '0AD', 
+                '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
+
+# url of the land use zip files
+hyde_url <- paste0('ftp://ftp.pbl.nl/hyde/hyde3.2/baseline/zip/',
+                    time_steps, '_lu.zip')
+
+# names of the cropland files to extract from the zip files
+hyde_file <- paste0('cropland', time_steps, '.asc')
+
+# if not present in raw-data directory, download land use zip files
+# and extract only the cropland file to the raw-data directory
+get_hyde <- function(url, file){
+  if(!file.exists(paste0('data/raw-data/HYDE/', file))){
+    temp <- tempfile()
+    download.file(url, temp)
+    unzip(temp, files = file, exdir = 'data/raw-data/HYDE', 
+          overwrite = TRUE)
+    unlink(temp)
+  }
+}
+
+# run get_hyde function on the lists of files above
+walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
+```
+
+```{r hyde-import, eval = FALSE}
+hyde <- list.files('data/raw-data/HYDE', full.names = TRUE) %>%
+  .[c(11:8, 3, 1:2, 4:7)] %>% #   temporal order
+  map(raster) %>%
+  brick %>%
+  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+```
+
+Download and import HYDE KK10 land-use reconstruction. Refer to the source .rmd document for the code to download the .nc file from the ftp server. If running for the first time, this will download about 18gb to your computer. 
+
+```{r, kk-10-download, echo = FALSE, eval = FALSE}
+if(!file.exists('data/raw-data/KK10.nc')){
+    download.file('http://hs.pangaea.de/model/ALCC/KK10.nc', 'data/raw-data/KK10.nc')
+  }
+```
+
+```{r kk10-import, eval = FALSE}
+kk10 <- brick('data/raw-data/KK10.nc') %>%
+  .[[c(51, 2051, 4051, 5051, 6051, 7051, 7551, 7801, 7901)]] %>%
+  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+```
+
+First calculate the total cropland area from HYDE and KK10 in each of the ArchaeoGLOBE regions, and convert to proportion of land area under cultivation in order to compare HYDE and ArchaeoGLOBE. Start by extracting the HYDE and KK10 data within each of the ArchaeoGLOBE regions. Be warned the `raster::extract()` command will take a while to run.
+
+```{r hyde-crops, eval = FALSE}
+hyde_crop_prop <- hyde %>%
+  raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
+  `names<-`(c('ID', -10, -8, -6, -4, -3, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
+  gather(time, value, 2:12) %>%
+  mutate(time = as.numeric(time)) %>%
+  left_join(regions, by = c('ID' = 'Archaeo_ID')) %>%
+  mutate(prop = value / Land_Area)
+```
+
+```{r, kk10-anthro-prop, eval = FALSE}
+kk_anthro_prop <- kk10 %>%
+  area %>%
+  `*`(kk10) %>%   
+  raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
+  `names<-`(c('ID', -8, -6, -4, -3, -2, -1, -0.45, -0.2, -0.1)) %>%
+  gather(time, value, 2:10) %>%
+  mutate(time = as.numeric(time)) %>%
+  left_join(regions, by = c('ID' = 'Archaeo_ID')) %>%
+  mutate(prop = value / Land_Area)
+```
+
+```{r, eval = FALSE, echo = FALSE}
+saveRDS(hyde_crop_prop, 'data/derived-data/hyde_crop_prop.RDS')
+saveRDS(kk_anthro_prop, 'data/derived-data/kk_anthro_prop.RDS')
+```
+
+```{r, echo = FALSE}
+hyde_crop_prop <- readRDS('data/derived-data/hyde_crop_prop.RDS')
+kk_anthro_prop <- readRDS('data/derived-data/kk_anthro_prop.RDS')
+```
+
+Next calculate the earliest onset time for intensive agriculture at common and widespread thresholds for the HYDE and KK10 data. Note that HYDE and KK10 are estimating different quantities (cropland vs anthropogenic land use), so the results won't be entirely consistent.
+
+```{r onsets-hyde}
+# data wrangling to extract onset times at different thresholds
+hyde_onset <- hyde_crop_prop %>%
+  filter(prop >= 0.01) %>%
+  mutate(level = if_else(prop >= 0.2, 'Widespread', 'Common')) %>%
+  group_by(ID, level) %>%
+  summarise(onset = min(time)) %>%
+  spread(level, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
+  gather(level, onset, Common:Widespread) %>%
+  mutate(source = 'HYDE',
+         level = if_else(level == 'Common', 
+                         'Common (> 1% land area)', 
+                         'Widespread (> 20% land area)')) %>%
+  rename(Region = ID)
+```
+
+```{r kk10-onset}
+# same for KK10 data
+kk10_onset <- kk_anthro_prop %>%
+  filter(prop >= 0.01) %>%
+  mutate(level = if_else(prop >= 0.2, 'Widespread', 'Common')) %>%
+  group_by(ID, level) %>%
+  summarise(onset = min(time)) %>%
+  spread(level, onset) %>%
+  mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
+  gather(level, onset, Common:Widespread) %>%
+  mutate(source = 'KK10',
+         level = if_else(level == 'Common', 
+                         'Common (> 1% land area)', 
+                         'Widespread (> 20% land area)')) %>%
+  rename(Region = ID)
+```
+
+As above, calculate the earliest onset time for intensive agriculture at common and widespread thresholds from the consensus assessment.
+
+```{r onsets-archaeoglobe}
+archaeoglobe_onset <- consensus %>%
+  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
+  gather(time_step, value, INAG_10KBP:INAG_1850CE) %>%
+  filter(value %in% c('Common', 'Widespread')) %>%
+  mutate(time = parse_number(time_step),
+         time = case_when(time == 1500 ~ .45,
+                          time == 1750 ~ .2,
+                          time == 1850 ~ .1,
+                          time <= 10 ~ time),
+         time = time * -1) %>%
+  group_by(Region, value) %>%
+  summarise(onset = min(time)) %>%
+  spread(value, onset) %>%
+  mutate(Common = if_else(is.na(Common) | (Common > Widespread & !is.na(Widespread)), Widespread, Common)) %>%
+  gather(level, onset, Common:Widespread) %>%
+  mutate(source = 'ArchaeoGLOBE',
+         level = if_else(level == 'Common', 
+                         'Common (> 1% land area)', 
+                         'Widespread (> 20% land area)'))
+```
+
+Combine the HYDE and ArchaeoGLOBE onsets into a single data frame for plotting. Limit the analysis to regions that have crops in HYDE at 2000CE. Then calculate the differences in onset times between the two datasets and plot the results.
+
+```{r}
+onsets <- bind_rows(hyde_onset, archaeoglobe_onset)
+
+# world regions that have crops in HYDE at 2000CE
+hyde_ag_regions <- hyde_crop_prop %>%
+  filter(time == 0.05 & prop >= 0.01) %>%
+  pull(ID)
+
+onset_difference <- onsets %>%
+  spread(source, onset) %>%
+  filter(Region %in% hyde_ag_regions) %>%
+  mutate(diff = ArchaeoGLOBE - HYDE,
+         diff = round(diff))
+```
+
+```{r echo = FALSE}
+onset_maps <- onsets %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level, source) %>%
+  filter(!is.na(level) & !is.na(source)) %>%
+  select(Archaeo_ID, level, source, onset) %>%
+  left_join(regions, .) %>%
+  ggplot() +
+  geom_sf(aes(fill = as.ordered(onset)), size = .3, color = 'white') +
+  scale_fill_brewer(palette = 'PuOr', name = 'Onset', na.value = 'darkgray',
+                       labels = c('8000 BP', '6000 BP', '4000 BP', '3000 BP', '2000 BP',
+                                  '1000 BP', '1500 CE', '1750 CE', '1850 CE', '2000 CE', 'None')) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_grid(source ~ level, switch = 'y') +
+  theme(legend.position = 'bottom', 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line"),
+        strip.text.y = element_text(angle = -90))
+
+onset_diff_maps <- onset_difference %>%   
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level) %>%
+  filter(!is.na(level)) %>%
+  select(Archaeo_ID, level, diff) %>%
+  left_join(regions, .) %>%
+  ggplot() +
+  geom_sf(aes(fill = diff), size = .3, color = 'white') +
+  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
+                       guide = 'colorbar', 
+                       palette = 'RdBu', 
+                       direction = 1, 
+                       limits = c(-6, 6),
+                        na.value = 'darkgray') +
+  geom_sf_text(aes(label = region_label), 
+               nudge_x = 500000, size = 1.5, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_wrap(~ level) +
+  theme(legend.position = c(0.50, 0.70), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6),
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
+
+onset_diff_barplot <- 
+  ggplot(onset_difference, aes(diff, group = diff)) +
+  geom_bar(aes(fill = diff)) +
+  scale_fill_distiller(palette = 'RdBu', 
+                       limits = c(-6,6),
+                       name = 'Onset\ndifference (ka)', 
+                       direction = 1) +
+  facet_wrap(~level) +
+  theme_minimal() +
+  labs(x = 'Onset\ndifference (ka)',
+       y = '% Regions') +
+  coord_flip() +
+  theme(legend.position = c(0.95, 0.2), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.direction="horizontal",
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
+```
+
+```{r, fig.show='hide', echo = FALSE,fig.width = 6.5, fig.height = 7.5}
+# put the figs together for the ArchaeoGLOBE-HYDE comparison
+# looks good when run interactively, but not when knit
+
+(onset_maps / onset_diff_maps / onset_diff_barplot) + 
+  plot_layout(heights = c(2, 1, 1)) +
+  plot_annotation(tag_levels = "A")
+
+ggsave("figures/5_ArchaeoGLOBE_HYDE_comparison.png", width = 6.5, height = 7.5)
+```
+```{r fig.width = 6.5, fig.height = 7.5, echo = FALSE}
+# doesn't look good when knit
+knitr::include_graphics("figures/5_ArchaeoGLOBE_HYDE_comparison.png")
+```
+
+
+Repeat the above the analysis for the KK10 data and plot the results.
+```{r, echo = FALSE}
+onsets <- bind_rows(kk10_onset, archaeoglobe_onset)
+
+onset_difference <- onsets %>%
+  spread(source, onset) %>%
+  filter(Region %in% hyde_ag_regions) %>%
+  mutate(diff = ArchaeoGLOBE - KK10,
+         diff = round(diff))
+```
+
+```{r echo = FALSE}
+onset_maps <- onsets %>%
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level, source) %>%
+  filter(!is.na(level) & !is.na(source)) %>%
+  select(Archaeo_ID, level, source, onset) %>%
+  left_join(regions, .) %>%
+  ggplot() +
+  geom_sf(aes(fill = as.ordered(onset)), size = .3, color = 'white') +
+  scale_fill_brewer(palette = 'PuOr', name = 'Onset', na.value = 'darkgray',
+                       labels = c('8000 BP', '6000 BP', '4000 BP', '3000 BP', '2000 BP',
+                                  '1000 BP', '1500 CE', '1750 CE', '1850 CE', '2000 CE', 'None')) +
+  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_grid(source ~ level, switch = 'y') +
+  theme(legend.position = 'bottom', 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line"),
+        strip.text.y = element_text(angle = -90))
+
+onset_diff_maps <- onset_difference %>%   
+  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
+  complete(Archaeo_ID, level) %>%
+  filter(!is.na(level)) %>%
+  select(Archaeo_ID, level, diff) %>%
+  left_join(regions, .) %>%
+  ggplot() +
+  geom_sf(aes(fill = diff), size = .3, color = 'white') +
+  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
+                       guide = 'colorbar', 
+                       palette = 'RdBu', 
+                       direction = 1, 
+                       limits = c(-6, 6),
+                        na.value = 'darkgray') +
+  geom_sf_text(aes(label = region_label), 
+               nudge_x = 500000, size = 1.5, hjust = 0) +
+  coord_sf(datum = NA) +
+  theme_void() +
+  facet_wrap(~ level) +
+  theme(legend.position = c(0.50, 0.70), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6),
+        legend.text.align = 1,
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
+
+onset_diff_barplot <- 
+  ggplot(onset_difference, aes(diff, group = diff)) +
+  geom_bar(aes(fill = diff)) +
+  scale_fill_distiller(palette = 'RdBu', 
+                       limits = c(-8, 8),
+                       name = 'Onset\ndifference (ka)', 
+                       direction = 1) +
+  facet_wrap(~level) +
+  theme_minimal() +
+  labs(x = 'Onset\ndifference (ka)',
+       y = '% Regions') +
+  coord_flip() +
+  theme(legend.position = c(0.95, 0.2), 
+        legend.title=element_text(size=8), 
+        legend.text=element_text(size=6), 
+        legend.text.align = 1,
+        legend.direction="horizontal",
+        legend.key.size = unit(0.5,"line")) +
+  guides(fill = guide_colorbar(title.position = "top"))
+```
+
+```{r fig.show='hide', echo = FALSE,fig.width = 6.5, fig.height = 7.5}
+# put the figs together for the ArchaeoGLOBE-HYDE comparison
+# looks good when run interactively, but not when knit
+
+(onset_maps / onset_diff_maps / onset_diff_barplot) + 
+  plot_layout(heights = c(2, 1, 1)) +
+  plot_annotation(tag_levels = "A")
+
+ggsave("figures/S7_ArchaeoGLOBE_KK10_comparison.png", width = 6.5, height = 7.5)
 ```
 
 
@@ -783,7 +1279,6 @@ names(consensus_cat_df_show) <- c(" ",
 consensus_cat_df_show$` ` <- c('shows a decline in foraging over time',
                               'shows no decline in foraging over time')
 knitr::kable(consensus_cat_df_show)
-
 ```
 
 
@@ -817,184 +1312,3 @@ or <- (A/B) / (C/D)
 The odds ratio for this table is `r round(or, 3)`, with a p-value of `r p_value`. This indicates that that claim of pastoralism being more widespread than crop agriculture after widespread foraging is abandoned is supported by the data. 
 
 Szumilas, Magdalena (2010). "Explaining Odds Ratios". _Journal of the Canadian Academy of Child and Adolescent Psychiatry_. 19 (3): 227–229
-
-# HYDE Comparison
-
-Here we compare the onset times for intensive agriculture derived from the ArchaeoGLOBE consensus estimates with those calculated from HYDE 3.2 data. We assess these differences at both the Common (>= 1%) and Widespread (>= 20%) levels.
-
-First calculate the total cropland area from HYDE in each of the ArchaeoGLOBE regions, and convert to proportion of land area under cultivation in order to compare HYDE and ArchaeoGLOBE. Be warned the `raster::extract()` command will take a while to run.
-
-```{r hyde-crops}
-hyde_crop_prop <- hyde %>%
-  raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
-  `names<-`(c('ID', -10, -8, -6, -4, -3, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
-  gather(time, value, 2:12) %>%
-  mutate(time = as.numeric(time)) %>%
-  left_join(regions, by = c('ID' = 'Archaeo_ID')) %>%
-  mutate(prop = value / Land_Area)
-```
-
-Calculate the earliest onset time for intensive agriculture at common and widespread thresholds for the HYDE data.
-
-```{r onsets-hyde}
-hyde_onset <- hyde_crop_prop %>%
-  filter(prop >= 0.01) %>%
-  mutate(level = if_else(prop >= 0.2, 'Widespread', 'Common')) %>%
-  group_by(ID, level) %>%
-  summarise(onset = min(time)) %>%
-  spread(level, onset) %>%
-  mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
-  gather(level, onset, Common:Widespread) %>%
-  mutate(source = 'HYDE',
-         level = if_else(level == 'Common', 
-                         'Common (> 1% land area)', 
-                         'Widespread (> 20% land area)')) %>%
-  rename(Region = ID)
-```
-
-Repeat for the ArchaeoGLOBE consensus assessment.
-
-```{r onsets-archaeoglobe}
-archaeoglobe_onset <- consensus %>%
-  select(Region, Label, INAG_10KBP:INAG_1850CE) %>%
-  gather(time_step, value, INAG_10KBP:INAG_1850CE) %>%
-  filter(value %in% c('Common', 'Widespread')) %>%
-  mutate(time = parse_number(time_step),
-         time = case_when(time == 1500 ~ .45,
-                          time == 1750 ~ .2,
-                          time == 1850 ~ .1,
-                          time <= 10 ~ time),
-         time = time * -1) %>%
-  group_by(Region, value) %>%
-  summarise(onset = min(time)) %>%
-  spread(value, onset) %>%
-  mutate(Common = if_else(is.na(Common), Widespread, Common)) %>%
-  gather(level, onset, Common:Widespread) %>%
-  mutate(source = 'ArchaeoGLOBE',
-         level = if_else(level == 'Common', 
-                         'Common (> 1% land area)', 
-                         'Widespread (> 20% land area)'))
-```
-
-Combine into a single data frame.
-
-```{r}
-onsets <- bind_rows(hyde_onset, archaeoglobe_onset)
-```
-
-What are the differences in onset times between the two datasets?
-
-```{r}
-# world regions that have crops in HYDE at 2000CE
-hyde_ag_regions <- hyde_crop_prop %>%
-  filter(time == 0.05 & prop >= 0.01) %>%
-  pull(ID)
-
-onset_difference <- onsets %>%
-  spread(source, onset) %>%
-  filter(Region %in% hyde_ag_regions) %>%
-  mutate(diff = ArchaeoGLOBE - HYDE,
-         diff = round(diff))
-```
-
-Plot the results.
-
-```{r echo = FALSE}
-onset_maps <- onsets %>%
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  complete(Archaeo_ID, level, source) %>%
-  filter(!is.na(level) & !is.na(source)) %>%
-  select(Archaeo_ID, level, source, onset) %>%
-  left_join(regions, .) %>%
-  ggplot() +
-  geom_sf(aes(fill = as.ordered(onset)), size = .3, color = 'white') +
-  scale_fill_viridis_d(name = 'Onset timestep', na.value = 'lightgray',
-                       labels = c('8000BP', '6000BP', '4000BP', '3000BP', '2000BP',
-                                  '1000BP', '1500CE', '1750CE', '1850CE', '2000CE', 'None')) +
-  geom_sf_text(aes(label = region_label), nudge_x = 500000, size = 1.5, hjust = 0) +
-  coord_sf(datum = NA) +
-  theme_void() +
-  facet_grid(source ~ level, switch = 'y') +
-  theme(legend.position = 'bottom', 
-        legend.title=element_text(size=8), 
-        legend.text=element_text(size=6), 
-        legend.text.align = 1,
-        legend.key.size = unit(0.5,"line"),
-        strip.text.y = element_text(angle = -90))
-
-onset_diff_maps <- onset_difference %>%   
-  left_join(regions, ., by = c('Archaeo_ID' = 'Region')) %>%
-  complete(Archaeo_ID, level) %>%
-  filter(!is.na(level)) %>%
-  select(Archaeo_ID, level, diff) %>%
-  left_join(regions, .) %>%
-  ggplot() +
-  geom_sf(aes(fill = diff), size = .3, color = 'white') +
-  scale_fill_distiller(name = 'Onset\ndifference\n(ka)', 
-                       guide = 'colorbar', 
-                       palette = 'PuOr', 
-                       direction = 1, 
-                       limits = c(-6, 6),
-                        na.value = 'lightgray') +
-  geom_sf_text(aes(label = region_label), 
-               nudge_x = 500000, size = 1.5, hjust = 0) +
-  coord_sf(datum = NA) +
-  theme_void() +
-  facet_wrap(~ level) +
-  theme(legend.position = c(0.50, 0.70), 
-        legend.title=element_text(size=8), 
-        legend.text=element_text(size=6),
-        legend.text.align = 1,
-        legend.key.size = unit(0.5,"line")) +
-  guides(fill = guide_colorbar(title.position = "top"))
-
-onset_diff_barplot <- 
-  ggplot(onset_difference, aes(diff, group = diff)) +
-  geom_bar(aes(fill = diff)) +
-  scale_fill_distiller(palette = 'PuOr', 
-                       limits = c(-6,6),
-                       name = 'Onset\ndifference (ka)', 
-                       direction = 1) +
-  facet_wrap(~level) +
-  theme_minimal() +
-  labs(x = 'Onset\ndifference (ka)',
-       y = '% Regions') +
-  coord_flip() +
-  theme(legend.position = c(0.95, 0.2), 
-        legend.title=element_text(size=8), 
-        legend.text=element_text(size=6), 
-        legend.text.align = 1,
-        legend.direction="horizontal",
-        legend.key.size = unit(0.5,"line")) +
-  guides(fill = guide_colorbar(title.position = "top"))
-```
-
-```{r results='hide', fig.width = 6.5, fig.height = 7.5}
-# put the figs together for the ArchaeoGLOBE-HYDE comparison
-# looks good when run interactively, but not when knit
-
-(onset_maps / onset_diff_maps / onset_diff_barplot) + 
-  plot_layout(heights = c(2, 1, 1)) +
-  plot_annotation(tag_levels = "A")
-
-ggsave("figures/5_ArchaeoGLOBE_HYDE_comparison.png", width = 6.5, height = 7.5)
-```
-
-```{r fig.width = 6.5, fig.height = 7.5}
-# doesn't look good when knit
-knitr::include_graphics("figures/5_ArchaeoGLOBE_HYDE_comparison.png")
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
