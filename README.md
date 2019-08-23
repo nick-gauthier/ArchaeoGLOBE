@@ -1,7 +1,6 @@
 # ArchaeoGLOBE Research Compendium
 
-[![Circle CI](https://circleci.com/gh/benmarwick/ArchaeoGLOBE.svg?style=shield&circle-token=:circle-token)](https://circleci.com/gh/benmarwick/ArchaeoGLOBE)  [![Binder](http://mybinder.org/badge.svg)](http://beta.mybinder.org/v2/gh/benmarwick/ArchaeoGLOBE/master?urlpath=rstudio)
-
+[![CircleCI](https://circleci.com/gh/nick-gauthier/ArchaeoGLOBE.svg?style=svg)](https://circleci.com/gh/nick-gauthier/ArchaeoGLOBE)  [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/nick-gauthier/ArchaeoGLOBE/master?urlpath=rstudio)
 
 This repository contains the working files of data and code for our paper:
 
@@ -19,9 +18,9 @@ Please cite this compendium using the archival URL (and not a GitHub URL):
 
 ### How to view, run, download
 
-You can view the results of the analysis online here: <https://benmarwick.github.io/ArchaeoGLOBE/analysis/archaeoglobe.pdf>
+You can view the results of the analysis online here: <https://github.com/nick-gauthier/ArchaeoGLOBE/blob/master/analysis/archaeoglobe.pdf>
 
-You can run the code in your browser (no download or install required) by [launching Binder](http://beta.mybinder.org/v2/gh/benmarwick/ArchaeoGLOBE/master?urlpath=rstudio)
+You can run the code in your browser (no download or install required) by [launching Binder](http://beta.mybinder.org/v2/gh/nick-gauthier/ArchaeoGLOBE/master?urlpath=rstudio)
 
 You can download the compendium as a zip from from this URL:
 <https://github.com/nick-gauthier/ArchaeoGLOBE/archive/master.zip>
