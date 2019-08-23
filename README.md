@@ -5,22 +5,17 @@
 
 This repository contains the working files of data and code for our paper:
 
-> Authors, (YYYY). *Title of paper*. Name of journal/book
-> <https://doi.org/xxx/xxx>
+> Stephens, L., D. Fuller, N. Boivin, T. Rick, N. Gauthier, A. Kay, B. Marwick, and the ArchaeoGLOBE project (2019). *Archaeological assessment reveals Earth’s early transformation through land use,*. Science
+> <https://doi.org/10.1126/science.aax1192>
 
-Our pre-print is online here:
-
-> Authors, (YYYY). *Title of paper*. Name of journal/book, Accessed 15
-> Nov 2018. Online at <https://doi.org/xxx/xxx>
-
-The files that produced the published results are also archived at <https://doi.org/xxx/xxx>
+The files that produced the published results are also archived at <https://doi.org/10.7910/DVN/CNCANQ>
 
 ### How to cite
 
 Please cite this compendium using the archival URL (and not a GitHub URL):
 
-> Authors, (2018). *Compendium of R code and data for ‘Title of paper’*.
-> Accessed 15 Nov 2018. Online at <https://doi.org/xxx/xxx>
+> Gauthier, N. and Marwick, B., (2019). *Compendium of R code and data for ‘Archaeological assessment reveals Earth’s early transformation through land use’*.
+> Accessed 15 Nov 2018. Online at <https://doi.org/10.7910/DVN/6ZXAGT>
 
 ### How to view, run, download
 
@@ -29,7 +24,7 @@ You can view the results of the analysis online here: <https://benmarwick.github
 You can run the code in your browser (no download or install required) by [launching Binder](http://beta.mybinder.org/v2/gh/benmarwick/ArchaeoGLOBE/master?urlpath=rstudio)
 
 You can download the compendium as a zip from from this URL:
-<https://github.com/benmarwick/ArchaeoGLOBE/archive/master.zip>
+<https://github.com/nick-gauthier/ArchaeoGLOBE/archive/master.zip>
 
 You can get the complete computational environment used for this project with our Docker container. To launch the Docker container for this project, first, install Docker on your computer. At the Docker prompt, enter:
 
