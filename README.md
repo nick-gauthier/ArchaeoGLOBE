@@ -5,7 +5,7 @@
 
 This repository contains the working files of data and code for our paper:
 
-> Stephens, L., D. Fuller, N. Boivin, T. Rick, N. Gauthier, A. Kay, B. Marwick, and the ArchaeoGLOBE project (2019). *Archaeological assessment reveals Earth’s early transformation through land use,*. Science
+> Stephens, L., D. Fuller, N. Boivin, T. Rick, N. Gauthier, A. Kay, B. Marwick, and the ArchaeoGLOBE project (2019). *Archaeological assessment reveals Earth’s early transformation through land use*. Science
 > <https://doi.org/10.1126/science.aax1192>
 
 The files that produced the published results are also archived at <https://doi.org/10.7910/DVN/CNCANQ>
