@@ -890,7 +890,7 @@ ggsave('figures/4_consensus_transitions.png', width = 9, height = 7)
 
 # HYDE Comparison
 
-Here we compare the onset times for intensive agriculture derived from the ArchaeoGLOBE consensus estimates with those calculated from HYDE 3.2 data. We assess these differences at both the Common (>= 1%) and Widespread (>= 20%) levels.
+Here we compare the onset times for intensive agriculture derived from the ArchaeoGLOBE consensus estimates with those calculated from HYDE 3.2 and KK10 data. We assess these differences at both the Common (>= 1%) and Widespread (>= 20%) levels.
 
 Download and import HYDE 3.2 and KK10 land-use reconstructions. Refer to the source .rmd document for the code to download the respective .zip and .nc files from their ftp servers. By default, we pull pre-computed results from a repository rather than running the time consuming download. If you would like a fresh download of the data, refer to the .rmd source file for the necessary code, which will download about 500mb and 18gb to your computer for each dataset, respectively. 
 
