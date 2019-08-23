@@ -892,9 +892,45 @@ ggsave('figures/4_consensus_transitions.png', width = 9, height = 7)
 
 Here we compare the onset times for intensive agriculture derived from the ArchaeoGLOBE consensus estimates with those calculated from HYDE 3.2 data. We assess these differences at both the Common (>= 1%) and Widespread (>= 20%) levels.
 
-Download and import HYDE 3.2 land-use reconstruction. Refer to the source .rmd document for the code to download the .zip files from the ftp server. If running for the first time, this will download about 500mb to your computer. 
+Download and import HYDE 3.2 and KK10 land-use reconstructions. Refer to the source .rmd document for the code to download the respective .zip and .nc files from their ftp servers. By default, we pull pre-computed results from a repository rather than running the time consuming download. If you would like a fresh download of the data, refer to the .rmd source file for the necessary code, which will download about 500mb and 18gb to your computer for each dataset, respectively. 
 
-```{r hyde-download, echo = FALSE, eval = FALSE}
+```{r echo = FALSE}
+# A simple type of caching...
+# Do we want to download the raw data, or
+# load a previously saved result from disk, or
+# download a previously saved result from a repository?
+# default is not run, then check if there is a saved file, and use that, or download
+
+rerun_time_consuming_download <- FALSE # FALSE means do not run the download code when knitting
+
+if(rerun_time_consuming_download) {
+  message('running the download code, this may take 30-50 min...')
+  # go to the next chunk of code
+} else {
+  # check if there is a local file and if so, load it
+  if(file.exists('data/derived-data/hyde_crop_prop.RDS') & file.exists('data/derived-data/kk_anthro_prop.RDS')) {
+    # the files exist on the local disk, so just read them in
+    message('Loading previously saved data from disk...')
+    hyde_crop_prop <- readRDS('data/derived-data/hyde_crop_prop.RDS')
+    kk_anthro_prop <- readRDS('data/derived-data/kk_anthro_prop.RDS')
+  } else {
+  # we don't want to run the download code, and the result don't exist locally,
+  # so download
+  message('Downloading previously saved data ...')
+  hyde_crop_prop <- osf_retrieve_file('#####') %>% osf_download('data/derived-data/hyde_crop_prop.RDS')
+  kk_anthro_prop <- osf_retrieve_file('#####') %>% osf_download('data/derived-data/kk_anthro_prop.RDS')
+  message('Loading the data downloaded from osf.io...')
+  hyde_crop_prop <- readRDS('data/derived-data/hyde_crop_prop.RDS')
+  kk_anthro_prop <- readRDS('data/derived-data/kk_anthro_prop.RDS')
+  writeLines(paste0('hyde_crop_prop.RDS downloded from https://osf.io/#####/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
+  writeLines(paste0('kk_anthro_prop.RDS downloded from https://osf.io/#####/ on ', Sys.Date()), con = 'data/derived-data/README.md', sep = '')
+  message('Done.')
+  } 
+}
+```
+
+```{r hyde-download, echo = FALSE, eval = rerun_time_consuming_download}
+# dowload the hyde data
 # which time steps to download
 time_steps <- c('8000BC', '6000BC', '4000BC', '2000BC', '1000BC', '0AD', 
                 '1000AD', '1500AD', '1750AD', '1850AD', '2000AD')
@@ -922,31 +958,31 @@ get_hyde <- function(url, file){
 walk2(.x = hyde_url, .y = hyde_file, .f = get_hyde)
 ```
 
-```{r hyde-import, eval = FALSE}
-hyde <- list.files('data/raw-data/HYDE', full.names = TRUE) %>%
-  .[c(11:8, 3, 1:2, 4:7)] %>% #   temporal order
-  map(raster) %>%
-  brick %>%
-  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
-```
-
-Download and import HYDE KK10 land-use reconstruction. Refer to the source .rmd document for the code to download the .nc file from the ftp server. If running for the first time, this will download about 18gb to your computer. 
-
-```{r, kk-10-download, echo = FALSE, eval = FALSE}
+```{r, kk-10-download, echo = FALSE, eval = rerun_time_consuming_download}
+# download raw KK10 data in not present
 if(!file.exists('data/raw-data/KK10.nc')){
     download.file('http://hs.pangaea.de/model/ALCC/KK10.nc', 'data/raw-data/KK10.nc')
   }
 ```
 
-```{r kk10-import, eval = FALSE}
+```{r hyde-import, eval = rerun_time_consuming_download}
+hyde <- list.files('data/raw-data/HYDE', full.names = TRUE) %>%
+  .[c(11:8, 3, 1:2, 4:7)] %>% #  temporal order
+  map(raster) %>%
+  brick %>%
+  `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+```
+
+```{r kk10-import, eval = rerun_time_consuming_download}
 kk10 <- brick('data/raw-data/KK10.nc') %>%
+  # select time slices of interest
   .[[c(51, 2051, 4051, 5051, 6051, 7051, 7551, 7801, 7901)]] %>%
   `crs<-`(value = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
 ```
 
-First calculate the total cropland area from HYDE and KK10 in each of the ArchaeoGLOBE regions, and convert to proportion of land area under cultivation in order to compare HYDE and ArchaeoGLOBE. Start by extracting the HYDE and KK10 data within each of the ArchaeoGLOBE regions. Be warned the `raster::extract()` command will take a while to run.
+First calculate the total cropland area from HYDE and KK10 in each of the ArchaeoGLOBE regions, and convert to proportion of land area under cultivation in order to compare HYDE and ArchaeoGLOBE. Start by extracting the HYDE and KK10 data within each of the ArchaeoGLOBE regions. Be warned the `raster::extract()` command may take a while to run.
 
-```{r hyde-crops, eval = FALSE}
+```{r hyde-crops, eval = rerun_time_consuming_download}
 hyde_crop_prop <- hyde %>%
   raster::extract(regions_hyde, na.rm = TRUE, fun = sum, df = TRUE) %>% # sample at region locations
   `names<-`(c('ID', -10, -8, -6, -4, -3, -2, -1, -0.45, -0.2, -0.1, 0.05)) %>%
@@ -956,7 +992,7 @@ hyde_crop_prop <- hyde %>%
   mutate(prop = value / Land_Area)
 ```
 
-```{r, kk10-anthro-prop, eval = FALSE}
+```{r, kk10-anthro-prop, eval = rerun_time_consuming_download}
 kk_anthro_prop <- kk10 %>%
   area %>%
   `*`(kk10) %>%   
@@ -968,14 +1004,55 @@ kk_anthro_prop <- kk10 %>%
   mutate(prop = value / Land_Area)
 ```
 
-```{r, eval = FALSE, echo = FALSE}
+```{r eval = rerun_time_consuming_download, echo = FALSE}
+# save to disk
 saveRDS(hyde_crop_prop, 'data/derived-data/hyde_crop_prop.RDS')
 saveRDS(kk_anthro_prop, 'data/derived-data/kk_anthro_prop.RDS')
+
+# write a note to indicate the provenance of this file
+this_commit <-  git2r::revparse_single(git2r::repository('.'), "HEAD")
+
+writeLines(paste0('hyde_crop_prop generated on ', 
+                  Sys.Date() , ' from archaeoglobe.Rmd at git commit ',
+                  this_commit$sha, ' made by ',
+                  this_commit$author$name, ' on ',
+                  this_commit$author$when, " with the message '",
+                  this_commit$summary, "'"),
+           con = 'data/derived-data/README.md', 
+           sep = '')
+
+writeLines(paste0('kk_anthro_prop generated on ', 
+                  Sys.Date() , ' from archaeoglobe.Rmd at git commit ',
+                  this_commit$sha, ' made by ',
+                  this_commit$author$name, ' on ',
+                  this_commit$author$when, " with the message '",
+                  this_commit$summary, "'"),
+           con = 'data/derived-data/README.md', 
+           sep = '')
+message('Done.')
 ```
 
-```{r, echo = FALSE}
-hyde_crop_prop <- readRDS('data/derived-data/hyde_crop_prop.RDS')
-kk_anthro_prop <- readRDS('data/derived-data/kk_anthro_prop.RDS')
+```{r eval = FALSE, echo = FALSE}
+# If we have freshly produced model output, we want to 
+# upload to osf.io, this needs to be done manually because we need to 
+# authenticate and don't want to put our PAT in the Rmd
+
+osf_auth('my-PAT-for-OSF') # Navigate to https://osf.io/settings/tokens/
+
+# upload the hyde derived  data
+osf_retrieve_node('gcfs6') %>% 
+  osf_upload(path = 'data/derived-data/hyde_crop_prop.RDS', 
+             overwrite = TRUE) 
+
+# upload the kk10 derived data
+osf_retrieve_node('gcfs6') %>%
+  osf_upload(path = 'data/derived-data/kk_anthro_prop.RDS',
+             overwrite = TRUE)
+
+# upload the README
+osf_retrieve_node('gcfs6') %>% 
+  osf_upload(path = 'data/derived-data/README.md', 
+             overwrite = TRUE)
 ```
 
 Next calculate the earliest onset time for intensive agriculture at common and widespread thresholds for the HYDE and KK10 data. Note that HYDE and KK10 are estimating different quantities (cropland vs anthropogenic land use), so the results won't be entirely consistent.
