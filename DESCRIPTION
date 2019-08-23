@@ -1,11 +1,11 @@
 Package: archaeoglobe
-Title: What the Package Does (One Line, Title Case)
+Title: Compendium of R Code for the ArchaeoGLOBE project
 Version: 0.0.0.9000
 Authors@R: 
     c(person(given = "Nick",
            family = "Gauthier",
            role = c("aut", "cre"),
-           email = "first.last@example.com"),
+           email = "ngauthier@email.arizona.edu"),
       person(given = "Ben",
            family = "Marwick",
            role = c("aut"),
@@ -15,13 +15,11 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Imports: 
+    raster
     mgcv,
     sf,
     tidyverse,
     dataverse,
-    git2r, 
-    rmapshaper,
-    lavaan,
-    psych
+    git2r
 Remotes: thomasp85/patchwork, centerforopenscience/osfr
 RoxygenNote: 6.1.1
