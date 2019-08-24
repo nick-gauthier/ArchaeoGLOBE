@@ -895,7 +895,8 @@ Here we compare the onset times for intensive agriculture derived from the Archa
 Download and import HYDE 3.2 and KK10 land-use reconstructions. Refer to the source .rmd document for the code to download the respective .zip and .nc files from their ftp servers. By default, we pull pre-computed results from our local repository rather than running the time consuming download. If you would like a fresh download of the data, refer to the .rmd source file for the necessary code, which will download about 500mb and 18gb to your computer for each dataset, respectively. 
 
 ```{r echo = FALSE}
-rerun_time_consuming_download <- FALSE # FALSE means do not run the download code when knitting
+# FALSE means do not run the download code when knitting
+rerun_time_consuming_download <- FALSE
 ```
 
 ```{r hyde-download, echo = FALSE, eval = rerun_time_consuming_download}
@@ -978,6 +979,13 @@ kk_anthro_prop <- kk10 %>%
 saveRDS(hyde_crop_prop, 'data/derived-data/hyde_crop_prop.RDS')
 saveRDS(kk_anthro_prop, 'data/derived-data/kk_anthro_prop.RDS')
 ```
+
+```{r}
+# load saved files
+hyde_crop_prop <- readRDS('data/derived-data/hyde_crop_prop.RDS')
+kk_anthro_prop <- readRDS('data/derived-data/kk_anthro_prop.RDS')
+```
+
 
 Next calculate the earliest onset time for intensive agriculture at common and widespread thresholds for the HYDE and KK10 data. Note that HYDE and KK10 are estimating different quantities (cropland vs anthropogenic land use), so the results won't be entirely consistent.
 
