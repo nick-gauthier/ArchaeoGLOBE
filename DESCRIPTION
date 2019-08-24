@@ -1,25 +1,34 @@
+Type: Compendium
 Package: archaeoglobe
-Title: Compendium of R Code for the ArchaeoGLOBE project
-Version: 0.0.0.9000
+Title: Research Compendium for the ArchaeoGLOBE project
+Version: 0.0.1
 Authors@R: 
     c(person(given = "Nick",
            family = "Gauthier",
            role = c("aut", "cre"),
-           email = "ngauthier@email.arizona.edu"),
+           email = "ngauthier@email.arizona.edu",
+	   comment = c(ORCID = "https://orcid.org/0000-0002-2225-5827")),
       person(given = "Ben",
            family = "Marwick",
            role = c("aut"),
            email = "first.last@example.com"))
-Description: What the package does (one paragraph).
+Description: Research Compendium for the ArchaeoGLOBE project.
 License: GPL-3
+Depends: 
+    dataverse,
+    devtools,
+    ggplot2,
+    git2r,
+    knitr,
+    mgcv,
+    parallel,
+    raster,
+    rmarkdown,
+    roxygen2,
+    sf,
+    tidyverse
+Remotes: 
+    centerforopenscience/osfr,
+    thomasp85/patchwork
 Encoding: UTF-8
 LazyData: true
-Imports: 
-    raster,
-    mgcv,
-    sf,
-    tidyverse,
-    dataverse,
-    git2r
-Remotes: thomasp85/patchwork, centerforopenscience/osfr
-RoxygenNote: 6.1.1
