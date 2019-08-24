@@ -10,9 +10,6 @@ COPY . /archaeoglobe
 # go into the repo directory
 RUN . /etc/environment \
 
-  # Install linux depedendencies here
-  # e.g. need this for ggforce::geom_sina
-  && sudo apt-get update \
   # install GitHub-only depedendencies
   && sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
 
