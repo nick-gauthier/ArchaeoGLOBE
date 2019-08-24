@@ -1,3 +1,4 @@
+# get the base image, the rocker/verse has R, RStudio and pandoc
 FROM rocker/geospatial:3.6.0
 
 # required
@@ -5,9 +6,13 @@ MAINTAINER Nick Gauthier <ngauthier91@gmail.com>
 
 COPY . /archaeoglobe
 
+
 # go into the repo directory
 RUN . /etc/environment \
 
+  # Install linux depedendencies here
+  # e.g. need this for ggforce::geom_sina
+  && sudo apt-get update \
   # install GitHub-only depedendencies
   && sudo R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) " \
 
