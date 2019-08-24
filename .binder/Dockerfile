@@ -1,12 +1,10 @@
-FROM rocker/binder:3.6.0
+FROM rocker/binder:3.5.3
 LABEL maintainer='Nick Gauthier'
 USER root
 COPY . ${HOME}
 RUN chown -R ${NB_USER} ${HOME}
 USER ${NB_USER}
 
-RUN installGithub.r centerforopenscience/osfr thomasp85/patchwork
-
 RUN wget https://github.com/nick-gauthier/ArchaeoGLOBE/raw/master/DESCRIPTION && R -e "options(repos = list(CRAN = 'http://mran.revolutionanalytics.com/snapshot/2019-08-24/')); devtools::install_deps()"
-
+RUN R -e "devtools::install_github(c('thomasp85/patchwork', 'centerforopenscience/osfr')) "
 RUN rm DESCRIPTION.1

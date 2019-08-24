@@ -1,5 +1,5 @@
 # get the base image, the rocker/verse has R, RStudio and pandoc
-FROM rocker/geospatial:3.6.0
+FROM rocker/geospatial:3.5.3
 
 # required
 MAINTAINER Nick Gauthier <ngauthier91@gmail.com>
